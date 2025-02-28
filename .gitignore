@@ -1,5 +1,5 @@
-# Created by https://www.toptal.com/developers/gitignore/api/composer,dotenv
-# Edit at https://www.toptal.com/developers/gitignore?templates=composer,dotenv
+# Created by https://www.toptal.com/developers/gitignore/api/composer,php-cs-fixer,phpunit
+# Edit at https://www.toptal.com/developers/gitignore?templates=composer,php-cs-fixer,phpunit
 
 ### Composer ###
 composer.phar
@@ -9,7 +9,29 @@ composer.phar
 # You may choose to ignore a library lock file http://getcomposer.org/doc/02-libraries.md#lock-file
 # composer.lock
 
-### dotenv ###
-.env
+### PHP-CS-Fixer ###
+# Covers PHP CS Fixer
+# Reference: https://cs.symfony.com/
 
-# End of https://www.toptal.com/developers/gitignore/api/composer,dotenv
+# Generated files
+.php-cs-fixer.cache
+
+# Local config See: https://cs.symfony.com/doc/config.html
+.php-cs-fixer.php
+
+### PHPUnit ###
+# Covers PHPUnit
+# Reference: https://phpunit.de/
+
+# Generated files
+.phpunit.result.cache
+.phpunit.cache
+
+# PHPUnit
+/app/phpunit.xml
+/phpunit.xml
+
+# Build data
+/build/
+
+# End of https://www.toptal.com/developers/gitignore/api/composer,php-cs-fixer,phpunit
