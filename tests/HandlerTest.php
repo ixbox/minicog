@@ -61,6 +61,11 @@ class HandlerTest extends TestCase
                 'password' => 'testpassword'
             ]);
 
+        // パスワード検証が成功することを設定
+        $this->userHandler->method('verifyPassword')
+            ->with('testuser', 'testpassword')
+            ->willReturn(true);
+
         // ロガーが呼ばれることを確認（コンストラクタ、__invoke、initiateAuth、認証成功の4回）
         $this->logger->expects($this->atLeast(3))
             ->method('debug');
@@ -97,6 +102,11 @@ class HandlerTest extends TestCase
                 'username' => $username,
                 'password' => $password
             ]);
+
+        // パスワード検証が成功することを設定
+        $this->userHandler->method('verifyPassword')
+            ->with($username, $password)
+            ->willReturn(true);
 
         // ロガーが呼ばれることを確認
         $this->logger->expects($this->exactly(2))
@@ -158,6 +168,11 @@ class HandlerTest extends TestCase
                 'username' => 'testuser',
                 'password' => 'correctpassword'
             ]);
+
+        // パスワード検証が失敗することを設定
+        $this->userHandler->method('verifyPassword')
+            ->with('testuser', 'wrongpassword')
+            ->willReturn(false);
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Incorrect username or password');
@@ -228,6 +243,11 @@ class HandlerTest extends TestCase
                 'username' => $username
             ]);
 
+        // ユーザーステータスが更新されることを確認
+        $this->userHandler->expects($this->once())
+            ->method('updateUserStatus')
+            ->with($username, 'CONFIRMED');
+
         // メソッドを実行
         $result = $this->handler->confirmSignUp([
             'Username' => $username,
@@ -272,7 +292,6 @@ class HandlerTest extends TestCase
         // privateメソッドをテストするためにリフレクションを使用
         $reflectionClass = new \ReflectionClass(Handler::class);
         $method = $reflectionClass->getMethod('generateToken');
-        $method->setAccessible(true);
 
         // メソッドを実行
         $token = $method->invoke($this->handler, $username, $type);
@@ -289,5 +308,152 @@ class HandlerTest extends TestCase
 
         // 有効期限が正しく設定されていることを確認（3600秒後）
         $this->assertEquals(3600, $decodedToken['exp'] - $decodedToken['iat']);
+    }
+
+    public function testInitiateAuthWithRefreshToken(): void
+    {
+        $username = 'testuser';
+        $password = 'testpassword';
+
+        // まず通常の認証でトークンを取得
+        $this->userHandler->method('getUser')
+            ->with($username)
+            ->willReturn([
+                'username' => $username,
+                'password' => $password
+            ]);
+
+        $this->userHandler->method('verifyPassword')
+            ->with($username, $password)
+            ->willReturn(true);
+
+        $authResult = $this->handler->initiateAuth([
+            'AuthFlow' => 'USER_PASSWORD_AUTH',
+            'AuthParameters' => [
+                'USERNAME' => $username,
+                'PASSWORD' => $password
+            ]
+        ]);
+
+        $refreshToken = $authResult['AuthenticationResult']['RefreshToken'];
+
+        // リフレッシュトークンで認証
+        $this->userHandler->method('getUser')
+            ->with($username)
+            ->willReturn([
+                'username' => $username
+            ]);
+
+        $refreshResult = $this->handler->initiateAuth([
+            'AuthFlow' => 'REFRESH_TOKEN_AUTH',
+            'AuthParameters' => [
+                'REFRESH_TOKEN' => $refreshToken
+            ]
+        ]);
+
+        $this->assertArrayHasKey('AuthenticationResult', $refreshResult);
+        $this->assertArrayHasKey('AccessToken', $refreshResult['AuthenticationResult']);
+        $this->assertArrayHasKey('IdToken', $refreshResult['AuthenticationResult']);
+        $this->assertArrayNotHasKey('RefreshToken', $refreshResult['AuthenticationResult']); // リフレッシュ時は新しいRefreshTokenは返さない
+    }
+
+    public function testInitiateAuthWithRefreshTokenThrowsExceptionForMissingToken(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Missing required parameter: REFRESH_TOKEN');
+
+        $this->handler->initiateAuth([
+            'AuthFlow' => 'REFRESH_TOKEN_AUTH',
+            'AuthParameters' => []
+        ]);
+    }
+
+    public function testInitiateAuthWithRefreshTokenThrowsExceptionForInvalidToken(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid refresh token');
+
+        $this->handler->initiateAuth([
+            'AuthFlow' => 'REFRESH_TOKEN_AUTH',
+            'AuthParameters' => [
+                'REFRESH_TOKEN' => 'invalid-token'
+            ]
+        ]);
+    }
+
+    public function testGetUserSuccess(): void
+    {
+        $username = 'testuser';
+
+        // アクセストークンを生成
+        $reflectionClass = new \ReflectionClass(Handler::class);
+        $method = $reflectionClass->getMethod('generateToken');
+        $accessToken = $method->invoke($this->handler, $username, 'access');
+
+        // ユーザー情報を設定
+        $this->userHandler->method('getUser')
+            ->with($username)
+            ->willReturn([
+                'username' => $username,
+                'attributes' => [
+                    'email' => 'test@example.com',
+                    'name' => 'Test User'
+                ],
+                'userStatus' => 'CONFIRMED',
+                'userCreateDate' => 1000000,
+                'userLastModifiedDate' => 2000000,
+                'enabled' => true
+            ]);
+
+        $result = $this->handler->getUser([
+            'AccessToken' => $accessToken
+        ]);
+
+        $this->assertEquals($username, $result['Username']);
+        $this->assertEquals('CONFIRMED', $result['UserStatus']);
+        $this->assertTrue($result['Enabled']);
+        $this->assertIsArray($result['UserAttributes']);
+
+        // 属性を確認
+        $attributes = $result['UserAttributes'];
+        $emailAttr = array_filter($attributes, fn($attr) => $attr['Name'] === 'email');
+        $this->assertNotEmpty($emailAttr);
+        $this->assertEquals('test@example.com', reset($emailAttr)['Value']);
+    }
+
+    public function testGetUserThrowsExceptionForMissingToken(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Missing required parameter: AccessToken');
+
+        $this->handler->getUser([]);
+    }
+
+    public function testGetUserThrowsExceptionForInvalidToken(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid access token');
+
+        $this->handler->getUser([
+            'AccessToken' => 'invalid-token'
+        ]);
+    }
+
+    public function testGetUserThrowsExceptionForExpiredToken(): void
+    {
+        // 有効期限切れのトークンを生成
+        $expiredToken = base64_encode(json_encode([
+            'sub' => 'testuser',
+            'type' => 'access',
+            'exp' => time() - 100, // 過去の時刻
+            'iat' => time() - 3700
+        ]));
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Access token has expired');
+
+        $this->handler->getUser([
+            'AccessToken' => $expiredToken
+        ]);
     }
 }
