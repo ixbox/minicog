@@ -24,13 +24,7 @@ class Handler
 
     public static function handleCognitoApi(UserHandlerInterface $userHandler, array $vars = []): void
     {
-        // 標準出力にログを出力するロガーの設定
-        $logger = new class extends \Psr\Log\AbstractLogger {
-            public function log($level, $message, array $context = []): void
-            {
-                error_log(sprintf("[%s] %s %s\n", $level, $message, json_encode($context)), 3, "php://stdout");
-            }
-        };
+        $logger = new NanoLogger((bool) getenv('MINICOG_DEBUG'));
 
         $sendResponse = function (array|null $data = null, int $statusCode = 200): void {
             header('Content-Type: application/x-amz-json-1.1');
@@ -150,6 +144,50 @@ class Handler
         ];
     }
 
+    public function adminInitiateAuth(array $args): array
+    {
+        $this->logger->debug('[MiniCog] Mocking adminInitiateAuth', $args);
+
+        $authFlow = $args['AuthFlow'] ?? 'ADMIN_NO_SRP_AUTH';
+
+        if ($authFlow === 'REFRESH_TOKEN_AUTH') {
+            return $this->handleRefreshTokenAuth($args);
+        }
+
+        if ($authFlow !== 'ADMIN_NO_SRP_AUTH' && $authFlow !== 'USER_PASSWORD_AUTH') {
+            throw new \InvalidArgumentException("AuthFlow $authFlow is not supported");
+        }
+
+        if (!isset($args['AuthParameters']['USERNAME'], $args['AuthParameters']['PASSWORD'])) {
+            throw new \InvalidArgumentException('Missing required parameters: USERNAME or PASSWORD');
+        }
+
+        $username = $args['AuthParameters']['USERNAME'];
+        $password = $args['AuthParameters']['PASSWORD'];
+
+        $user = $this->userHandler->getUser($username);
+        if (!$user) {
+            $this->logger->debug('[MiniCog] User Not Found');
+            throw new \InvalidArgumentException('User does not exist');
+        }
+
+        if (!$this->userHandler->verifyPassword($username, $password)) {
+            throw new \InvalidArgumentException('Incorrect username or password');
+        }
+
+        $this->logger->debug('[MiniCog] Admin authenticated user successfully', ['username' => $username]);
+
+        return [
+            'AuthenticationResult' => [
+                'AccessToken' => $this->generateToken($username, 'access'),
+                'ExpiresIn' => self::TOKEN_EXPIRY,
+                'TokenType' => 'Bearer',
+                'RefreshToken' => $this->generateToken($username, 'refresh'),
+                'IdToken' => $this->generateToken($username, 'id')
+            ]
+        ];
+    }
+
     private function handleRefreshTokenAuth(array $args): array
     {
         if (!isset($args['AuthParameters']['REFRESH_TOKEN'])) {
@@ -224,11 +262,85 @@ class Handler
         return [
             'Username' => $user['username'],
             'UserAttributes' => $userAttributes,
+            'Attributes' => $userAttributes, // 互換性のため追加
             'UserStatus' => $user['userStatus'] ?? 'UNCONFIRMED',
             'UserCreateDate' => $user['userCreateDate'] ?? time(),
             'UserLastModifiedDate' => $user['userLastModifiedDate'] ?? time(),
             'Enabled' => $user['enabled'] ?? true,
         ];
+    }
+
+    public function listUsers(array $args): array
+    {
+        $this->logger->debug('[MiniCog] Mocking listUsers', $args);
+
+        if (!isset($args['UserPoolId'])) {
+            throw new \InvalidArgumentException('Missing required parameter: UserPoolId');
+        }
+
+        $allUsers = $this->userHandler->listUsers();
+        $limit = $args['Limit'] ?? 60;
+        $paginationToken = $args['PaginationToken'] ?? null;
+        $filter = $args['Filter'] ?? null;
+
+        // フィルタリング（簡易実装）
+        $filteredUsers = $allUsers;
+        if ($filter) {
+            // Filter形式: "attribute = \"value\"" など
+            // モック実装なので、簡易的に処理
+            $filteredUsers = array_filter($allUsers, function ($user) use ($filter) {
+                // 簡易的なフィルタリング（実際のCognitoはもっと複雑）
+                if (stripos($filter, 'status') !== false) {
+                    $status = $user['userStatus'] ?? 'UNCONFIRMED';
+                    if (stripos($filter, $status) === false) {
+                        return false;
+                    }
+                }
+                return true;
+            });
+        }
+
+        // ページネーション（簡易実装）
+        $offset = 0;
+        if ($paginationToken) {
+            $offset = (int)base64_decode($paginationToken, true) ?: 0;
+        }
+
+        $users = array_slice($filteredUsers, $offset, $limit, true);
+        $nextOffset = $offset + $limit;
+        $hasMore = $nextOffset < count($filteredUsers);
+
+        // Cognito形式のユーザーリストを構築
+        $userList = [];
+        foreach ($users as $user) {
+            $userAttributes = [];
+            foreach ($user['attributes'] ?? [] as $name => $value) {
+                $userAttributes[] = [
+                    'Name' => $name,
+                    'Value' => (string)$value
+                ];
+            }
+
+            $userList[] = [
+                'Username' => $user['username'],
+                'UserAttributes' => $userAttributes,
+                'Attributes' => $userAttributes, // 互換性のため追加
+                'UserStatus' => $user['userStatus'] ?? 'UNCONFIRMED',
+                'UserCreateDate' => $user['userCreateDate'] ?? time(),
+                'UserLastModifiedDate' => $user['userLastModifiedDate'] ?? time(),
+                'Enabled' => $user['enabled'] ?? true,
+            ];
+        }
+
+        $result = [
+            'Users' => $userList,
+        ];
+
+        if ($hasMore) {
+            $result['PaginationToken'] = base64_encode((string)$nextOffset);
+        }
+
+        return $result;
     }
 
     public function signUp(array $args): array
@@ -276,6 +388,56 @@ class Handler
         $this->userHandler->updateUserStatus($username, 'CONFIRMED');
 
         return [];
+    }
+
+    public function describeUserPool(array $args): array
+    {
+        $this->logger->debug('[MiniCog] Mocking describeUserPool', $args);
+
+        if (!isset($args['UserPoolId'])) {
+            throw new \InvalidArgumentException('Missing required parameter: UserPoolId');
+        }
+
+        $userPoolId = $args['UserPoolId'];
+        $now = time();
+
+        // モック用のユーザープール情報を返す
+        return [
+            'UserPool' => [
+                'Id' => $userPoolId,
+                'Name' => 'MockUserPool',
+                'Status' => 'Active',
+                'CreationDate' => $now - 86400, // 1日前
+                'LastModifiedDate' => $now,
+                'AliasAttributes' => [],
+                'UsernameAttributes' => [],
+                'AutoVerifiedAttributes' => [],
+                'SchemaAttributes' => [
+                    [
+                        'Name' => 'sub',
+                        'AttributeDataType' => 'String',
+                        'Required' => true,
+                        'Mutable' => false,
+                    ],
+                    [
+                        'Name' => 'email',
+                        'AttributeDataType' => 'String',
+                        'Required' => false,
+                        'Mutable' => true,
+                    ],
+                ],
+                'Policies' => [
+                    'PasswordPolicy' => [
+                        'MinimumLength' => 8,
+                        'RequireUppercase' => false,
+                        'RequireLowercase' => false,
+                        'RequireNumbers' => false,
+                        'RequireSymbols' => false,
+                    ],
+                ],
+                'EstimatedNumberOfUsers' => count($this->userHandler->listUsers()),
+            ],
+        ];
     }
 
     private function generateToken(string $username, string $type): string

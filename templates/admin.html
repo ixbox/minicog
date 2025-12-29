@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MiniCog - User Management</title>
     <link rel="stylesheet" href="https://unpkg.com/sakura.css/css/sakura.css">
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
 </head>
 <body>
     <main>
@@ -14,45 +13,32 @@
             <p>ローカル開発用 Cognito モック - ユーザー管理</p>
         </header>
 
-        <p><button onclick="document.getElementById('create-dialog').showModal()">新規ユーザー作成</button></p>
+        <h2>新規ユーザー作成</h2>
+        <form method="post" action="/admin/users">
+            <p>
+                <label for="username">ユーザー名</label>
+                <input type="text" id="username" name="username" required>
+            </p>
+            <p>
+                <label for="password">パスワード</label>
+                <input type="password" id="password" name="password" required>
+            </p>
+            <p>
+                <label for="email">メール（任意）</label>
+                <input type="email" id="email" name="email">
+            </p>
+            <p>
+                <button type="submit">作成</button>
+            </p>
+        </form>
 
-        <dialog id="create-dialog">
-            <h2>新規ユーザー作成</h2>
-            <form hx-post="/admin/users" hx-target="#user-list" hx-swap="outerHTML" hx-on::after-request="if(event.detail.successful) { this.reset(); document.getElementById('create-dialog').close(); }">
-                <p>
-                    <label for="username">ユーザー名</label>
-                    <input type="text" id="username" name="username" required placeholder="testuser">
-                </p>
-                <p>
-                    <label for="password">パスワード</label>
-                    <input type="password" id="password" name="password" required placeholder="password">
-                </p>
-                <p>
-                    <label for="email">メール（任意）</label>
-                    <input type="email" id="email" name="email" placeholder="user@example.com">
-                </p>
-                <p>
-                    <button type="submit">作成</button>
-                    <button type="button" onclick="document.getElementById('create-dialog').close()">キャンセル</button>
-                </p>
-            </form>
-        </dialog>
-
-        <section id="user-list" hx-get="/admin/users" hx-trigger="load, refreshList from:body" hx-swap="innerHTML">
-            <p>読み込み中...</p>
+        <section id="user-list">
+            <!-- ユーザーリストはPHPで出力 -->
         </section>
 
         <footer>
             <p><small>MiniCog - AWS Cognito Mock Server for Local Development</small></p>
         </footer>
     </main>
-
-    <script>
-        document.body.addEventListener('htmx:afterRequest', function(event) {
-            if (event.detail.pathInfo.requestPath.includes('/admin/users')) {
-                htmx.trigger('#user-list', 'refreshList');
-            }
-        });
-    </script>
 </body>
 </html>

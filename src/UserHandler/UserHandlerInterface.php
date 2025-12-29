@@ -5,6 +5,11 @@ namespace MiniCog\UserHandler;
 interface UserHandlerInterface
 {
     /**
+     * ユーザー一覧を取得
+     */
+    public function listUsers(): array;
+
+    /**
      * ユーザー情報を取得
      */
     public function getUser(string $username): ?array;

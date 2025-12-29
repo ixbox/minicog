@@ -2,38 +2,53 @@
 
 require __DIR__ . '/../vendor/autoload.php';
 
-use MiniCog\Router;
+use MiniCog\AdminController;
+use MiniCog\Handler;
+use MiniCog\NanoLogger;
 use MiniCog\UserHandler\FileUserHandler;
 
 // 設定
+$debug = (bool) getenv('MINICOG_DEBUG');
 $dataFile = getenv('MINICOG_DATA_FILE') ?: __DIR__ . '/../data/users.json';
+
+// 依存性の生成
+$logger = new NanoLogger($debug);
 $userHandler = new FileUserHandler($dataFile);
+$adminController = new AdminController($logger, $userHandler);
 
 // URIからクエリ文字列を除去
 $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $method = $_SERVER['REQUEST_METHOD'];
 
-$dispatcher = Router::createDispatcher();
-$routeInfo = $dispatcher->dispatch($method, $uri);
+// ルーティング
+$routes = [
+    'GET' => [
+        '/admin' => fn() => $adminController->index(),
+        '/admin/users' => fn() => $adminController->list(),
+    ],
+    'POST' => [
+        '/' => fn() => Handler::handleCognitoApi($userHandler),
+        '/admin/users' => fn() => $adminController->create(),
+    ],
+];
 
-switch ($routeInfo[0]) {
-    case \FastRoute\Dispatcher::NOT_FOUND:
-        http_response_code(404);
-        echo json_encode(['error' => 'Not Found']);
-        break;
-    case \FastRoute\Dispatcher::METHOD_NOT_ALLOWED:
-        http_response_code(405);
-        echo json_encode(['error' => 'Method Not Allowed']);
-        break;
-    case \FastRoute\Dispatcher::FOUND:
-        $handler = $routeInfo[1];
-        $vars = $routeInfo[2];
-        
-        if (is_string($handler) && strpos($handler, '::') !== false) {
-            [$class, $method] = explode('::', $handler);
-            call_user_func([$class, $method], $userHandler, $vars);
-        } else {
-            call_user_func($handler, $userHandler, $vars);
-        }
-        break;
+// 動的ルート（パラメータあり）
+if ($method === 'POST' && preg_match('#^/admin/users/([^/]+)/delete$#', $uri, $matches)) {
+    $adminController->delete(rawurldecode($matches[1]));
+    exit;
 }
+
+if ($method === 'POST' && preg_match('#^/admin/users/([^/]+)/confirm$#', $uri, $matches)) {
+    $adminController->confirm(rawurldecode($matches[1]));
+    exit;
+}
+
+// 静的ルートのマッチング
+if (isset($routes[$method][$uri])) {
+    $routes[$method][$uri]();
+    exit;
+}
+
+// Not Found
+http_response_code(404);
+echo json_encode(['error' => 'Not Found']);
