@@ -15,6 +15,11 @@ class MemoryUserHandler implements UserHandlerInterface
         }
     }
 
+    public function listUsers(): array
+    {
+        return $this->users;
+    }
+
     public function getUser(string $username): ?array
     {
         return $this->users[$username] ?? null;
