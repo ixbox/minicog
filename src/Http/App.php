@@ -97,7 +97,7 @@ final class App
         $r->get('/logout', fn ($request) => $this->oauth->logout($request));
 
         // 管理画面
-        $r->get('/', fn ($request) => $this->admin->index($request));
+        $r->get('/', fn () => new Response(302, ['Location' => '/admin']));
         $r->get('/admin', fn ($request) => $this->admin->index($request));
         $r->post('/admin/users', fn ($request) => $this->admin->create($request));
         $r->post('/admin/users/{username}/{action:confirm|delete}', fn ($request, array $vars) => $this->adminAction($vars['action'], $vars['username']));

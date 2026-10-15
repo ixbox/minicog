@@ -163,6 +163,12 @@ final class OAuthTest extends TestCase
     {
         $this->assertSame(404, $this->get('/nope')->getStatusCode());
 
+        // / はブラウザで開くと管理画面へ、ヘッダーなしの POST は 405
+        $root = $this->get('/');
+        $this->assertSame(302, $root->getStatusCode());
+        $this->assertSame('/admin', $root->getHeaderLine('Location'));
+        $this->assertSame(405, $this->post('/', [])->getStatusCode());
+
         $notAllowed = $this->minicog->handle(new ServerRequest('DELETE', 'http://localhost:9229/oauth2/token'));
         $this->assertSame(405, $notAllowed->getStatusCode());
         $this->assertSame('POST', $notAllowed->getHeaderLine('Allow'));
