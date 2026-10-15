@@ -22,6 +22,33 @@ composer serve            # = php -S localhost:9229 public/index.php
   - このファイルを消すと初期化されます。
 - 確認コードと一時パスワードは標準エラーのログにも出ます。
 
+### phar で起動する
+
+phar はリポジトリのチェックアウトも `composer install` も要らない、1 ファイルの実行形式です。
+PHP 8.2 以上（openssl 拡張あり）があれば動きます。
+
+```sh
+composer build-phar       # build/minicog.phar を作る
+
+php minicog.phar          # または ./minicog.phar
+php minicog.phar --listen 0.0.0.0:9229 --data ./minicog-data.json --config ./minicog.json
+php minicog.phar --help
+```
+
+| オプション | 既定値 | 説明 |
+|---|---|---|
+| `--listen <host:port>` | `localhost:9229` | 待ち受けるアドレス |
+| `--data <file>` | `./minicog-data.json` | 状態の保存先。phar の中には書き込めないので、実行したディレクトリに作る |
+| `--config <file>` | なし | 設定 JSON ファイル（`MINICOG_CONFIG` と同じ） |
+| `--templates <dir>` | なし | テンプレートを上書きするディレクトリ（`MINICOG_TEMPLATES_DIR` と同じ） |
+| `--version` | | ビルドしたコミット（`git describe`）を表示する |
+
+- それ以外の設定は、[環境変数](#設定)で指定します。
+- `MINICOG_BASE_URL` を指定しない場合は、`--listen` のアドレスから自動で決まります。
+  - そのため、ポートを変えても issuer と OAuth の URL が食い違いません。
+  - `0.0.0.0` で待ち受ける場合は `localhost` になります。
+- 中では PHP の組み込みサーバーを、phar 自身をルーターにして起動しています。
+
 ### Docker で起動する
 
 ```sh

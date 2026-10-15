@@ -9,3 +9,6 @@ phpunit.xml
 Dockerfile
 .dockerignore
 compose.yaml
+build
+bin
+phar

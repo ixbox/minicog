@@ -37,7 +37,8 @@
       "Composer\\Config::disableProcessTimeout",
       "php -S localhost:9229 public/index.php"
     ],
-    "test": "phpunit"
+    "test": "phpunit",
+    "build-phar": "@php -d phar.readonly=0 bin/build-phar.php"
   },
   "config": {
     "allow-plugins": {
