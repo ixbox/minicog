@@ -12,13 +12,15 @@ use MiniCog\Store\MemoryStore;
 use MiniCog\Store\StoreInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Server\RequestHandlerInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 
 /**
  * MiniCog のエントリーポイント。
  *
- * サーバーとして動かす場合は handle() に PSR-7 リクエストを渡す。
+ * PSR-15 のリクエストハンドラなので、サーバーとして動かす場合は handle() に PSR-7 リクエストを渡す
+ * （任意の PSR-15 ランナーにもそのまま渡せる）。
  * サーバーを立てずに使う場合は httpHandler() を AWS SDK の http_handler に渡す:
  *
  *     $minicog = MiniCog::create(['userPoolId' => 'ap-northeast-1_example']);
@@ -29,7 +31,7 @@ use Psr\Log\NullLogger;
  *         'http_handler' => $minicog->httpHandler(),
  *     ]);
  */
-final class MiniCog
+final class MiniCog implements RequestHandlerInterface
 {
     public readonly UserPool $users;
     public readonly TokenService $tokens;
@@ -57,6 +59,9 @@ final class MiniCog
         return new self(Config::fromArray($config), $store, $logger ?? new NullLogger());
     }
 
+    /**
+     * PSR-15 の handle(ServerRequestInterface) より広い RequestInterface も受け付ける（引数の反変）。
+     */
     public function handle(RequestInterface $request): ResponseInterface
     {
         return $this->app->handle($request);

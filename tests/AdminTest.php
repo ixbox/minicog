@@ -153,9 +153,18 @@ final class AdminTest extends TestCase
             $this->assertSame(200, $asset->getStatusCode(), $file);
             $this->assertStringStartsWith($type, $asset->getHeaderLine('Content-Type'));
         }
+        $this->assertSame('no-cache', $asset->getHeaderLine('Cache-Control'));
         $etag = $asset->getHeaderLine('ETag');
         $cached = $this->send(new ServerRequest('GET', 'http://localhost:9229/assets/minicog.css', ['If-None-Match' => $etag]));
         $this->assertSame(304, $cached->getStatusCode());
+
+        // テンプレートは内容のハッシュ付きで参照し、その URL は長くキャッシュさせる
+        preg_match('#href="(/assets/minicog\.css\?v=[0-9a-f]{10})"#', $html, $m);
+        $this->assertNotEmpty($m, 'minicog.css をハッシュ付きで参照している');
+        $versioned = $this->get($m[1]);
+        $this->assertSame(200, $versioned->getStatusCode());
+        $this->assertStringContainsString('immutable', $versioned->getHeaderLine('Cache-Control'));
+        $this->assertSame('no-cache', $this->get('/assets/minicog.css?v=0000000000')->getHeaderLine('Cache-Control'), '古いハッシュはキャッシュさせない');
         $this->assertSame(404, $this->get('/assets/missing.css')->getStatusCode());
         $this->assertSame(404, $this->get('/assets/..%2Fcomposer.json')->getStatusCode());
     }

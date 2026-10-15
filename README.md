@@ -286,6 +286,25 @@ if ($this->app->environment('local', 'testing')) {
 }
 ```
 
+## PSR-15 のハンドラとして使う
+
+`MiniCog` は PSR-15 の `RequestHandlerInterface` を実装しています。
+PSR-7 のサーバーリクエストを渡せば、任意の PSR-15 ランナーやミドルウェアと組み合わせられます。
+
+```php
+$minicog = MiniCog::create(['userPoolId' => 'ap-northeast-1_example']);
+$response = $minicog->handle($serverRequest);   // ResponseInterface
+```
+
+- `handle()` は `ServerRequestInterface` だけでなく、素の `RequestInterface` も受け付けます（引数の反変）。
+  - AWS SDK の `http_handler` から来るリクエストがこれにあたります。
+- 中は次の順に PSR-15 のミドルウェアを通っています。どれも `MiniCog\Http\Middleware` にあり、単体でも使えます。
+  1. `CorsMiddleware`: CORS ヘッダーの付与と、プリフライトへの 204
+  2. `ErrorHandlerMiddleware`: 想定外の例外をログに出し、500 の JSON にする
+  3. `ParseRequestMiddleware`: 未解析のクエリ・Cookie・フォームを解析する
+- 既存のアプリにミドルウェアとして差し込む形には対応していません。
+  - MiniCog のルートは `/`、`/login`、`/logout` などルート直下にあり、アプリ側のルートとぶつかるためです。
+
 ## 対応している API
 
 | 分類 | オペレーション |

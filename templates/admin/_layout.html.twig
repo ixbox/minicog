@@ -7,8 +7,8 @@
 {% extends 'layout.html.twig' %}
 
 {% block head %}
-    <script src="/assets/htmx.min.js" defer></script>
-    <script src="/assets/minicog.js" defer></script>
+    <script src="{{ asset('htmx.min.js') }}" defer></script>
+    <script src="{{ asset('minicog.js') }}" defer></script>
 {% endblock %}
 
 {% block body_attributes %}hx-boost="true"{% endblock %}

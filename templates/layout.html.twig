@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="light dark">
     <title>{% block title %}{% endblock %} - MiniCog</title>
-    <link rel="stylesheet" href="/assets/pico.min.css">
-    <link rel="stylesheet" href="/assets/minicog.css">
+    <link rel="stylesheet" href="{{ asset('pico.min.css') }}">
+    <link rel="stylesheet" href="{{ asset('minicog.css') }}">
     {% block head %}{% endblock %}
 </head>
 <body {% block body_attributes %}{% endblock %}>

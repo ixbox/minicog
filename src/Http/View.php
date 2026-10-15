@@ -6,6 +6,7 @@ use GuzzleHttp\Psr7\Response;
 use Psr\Http\Message\ResponseInterface;
 use Twig\Environment;
 use Twig\Loader\FilesystemLoader;
+use Twig\TwigFunction;
 
 /**
  * Twig で HTML を描画する。
@@ -16,6 +17,8 @@ use Twig\Loader\FilesystemLoader;
  */
 final class View
 {
+    public const ASSETS_DIR = __DIR__ . '/../../assets';
+
     private ?Environment $twig = null;
 
     public function __construct(
@@ -36,6 +39,16 @@ final class View
             $headers + ['Content-Type' => 'text/html; charset=utf-8'],
             $this->render($template, $context),
         );
+    }
+
+    /**
+     * 同梱アセットの URL。内容のハッシュを付けるので、更新するとブラウザのキャッシュが使われなくなる。
+     */
+    public static function assetUrl(string $file): string
+    {
+        $path = self::ASSETS_DIR . '/' . $file;
+
+        return '/assets/' . rawurlencode($file) . (is_file($path) ? '?v=' . substr(md5_file($path), 0, 10) : '');
     }
 
     private function twig(): Environment
@@ -60,6 +73,7 @@ final class View
         foreach ($this->globals as $name => $value) {
             $twig->addGlobal($name, $value);
         }
+        $twig->addFunction(new TwigFunction('asset', self::assetUrl(...)));
 
         return $this->twig = $twig;
     }
