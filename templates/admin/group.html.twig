@@ -1,0 +1,61 @@
+{#
+  context:
+    group     グループ
+    members   所属ユーザー
+    others    未所属ユーザー
+#}
+{% extends 'admin/_layout.html.twig' %}
+{% import 'admin/_macros.html.twig' as m %}
+
+{% set path = '/admin/groups/' ~ group.name|url_encode %}
+
+{% block title %}{{ group.name }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb"><ul><li><a href="/admin/groups">グループ</a></li><li>{{ group.name }}</li></ul></nav>
+
+<header class="page"><h2>{{ group.name }}</h2></header>
+<p class="muted">
+    {{ group.description ?? '説明なし' }} · 優先度 {{ group.precedence ?? '-' }} · 作成 {{ m.time(group.createdAt, true) }}
+</p>
+
+<article>
+    <header><strong>メンバー <small class="muted">{{ members|length }}</small></strong></header>
+    {% if members is empty %}
+        <p class="muted">メンバーはいません。</p>
+    {% else %}
+        <table>
+            <tbody>
+            {% for user in members %}
+                <tr>
+                    <td><a href="/admin/users/{{ user.username|url_encode }}">{{ user.username }}</a></td>
+                    <td>{{ user.attributes.email ?? '' }}</td>
+                    <td>{{ m.status(user) }}</td>
+                    <td>
+                        <form method="post" action="{{ path }}/members/{{ user.username|url_encode }}/delete">
+                            <button type="submit" class="secondary outline">外す</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+    {% if others is not empty %}
+        <form method="post" action="{{ path }}/members">
+            <fieldset role="group">
+                <select name="username" required>
+                    {% for user in others %}
+                        <option value="{{ user.username }}">{{ user.username }}{% if user.attributes.email is defined %} ({{ user.attributes.email }}){% endif %}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit">追加</button>
+            </fieldset>
+        </form>
+    {% endif %}
+</article>
+
+<form method="post" action="{{ path }}/delete" hx-confirm="グループ {{ group.name }} を削除します。メンバーのユーザーは削除されません。">
+    <button type="submit" class="danger">このグループを削除</button>
+</form>
+{% endblock %}

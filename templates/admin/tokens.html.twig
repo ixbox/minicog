@@ -1,0 +1,58 @@
+{#
+  context:
+    users          ユーザー一覧
+    selected       初期選択するユーザー名（なければ null）
+    defaultScope   スコープ欄の初期値
+#}
+{% extends 'admin/_layout.html.twig' %}
+
+{% block title %}トークン{% endblock %}
+
+{% block content %}
+<header class="page"><h2>トークン</h2></header>
+
+<article>
+    <header><strong>発行</strong> <small class="muted">パスワードなしで、選んだユーザーのトークンを発行します</small></header>
+    {% if users is empty %}
+        <p class="muted">ユーザーがいません。<a href="/admin/users">ユーザーを作成</a>してください。</p>
+    {% else %}
+        <form hx-post="/admin/tokens" hx-target="#token-result" hx-swap="innerHTML">
+            <div class="grid">
+                <label>ユーザー
+                    <select name="username" required>
+                        {% for user in users %}
+                            <option value="{{ user.username }}" {% if user.username == selected %}selected{% endif %}>
+                                {{ user.username }}{% if user.attributes.email is defined %} ({{ user.attributes.email }}){% endif %}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label>クライアント ID
+                    {% if config.clients is empty %}
+                        <input type="text" name="client_id" value="minicog-admin" required>
+                    {% else %}
+                        <select name="client_id" required>
+                            {% for client in config.clients %}<option>{{ client.clientId }}</option>{% endfor %}
+                        </select>
+                    {% endif %}
+                </label>
+            </div>
+            <label>スコープ（空白区切り）
+                <input type="text" name="scope" value="{{ defaultScope }}" required>
+                <small class="muted">aws.cognito.signin.user.admin があると GetUser などの API に使えます。openid か aws.cognito.signin.user.admin があれば ID トークンも発行します。</small>
+            </label>
+            <button type="submit">発行</button>
+        </form>
+    {% endif %}
+    <div id="token-result" aria-live="polite"></div>
+</article>
+
+<article>
+    <header><strong>デコードと検証</strong> <small class="muted">JWT を貼り付けると、中身と署名を確認できます</small></header>
+    <form hx-post="/admin/tokens/decode" hx-target="#decode-result" hx-swap="innerHTML">
+        <textarea name="jwt" class="token" placeholder="eyJ... または Bearer eyJ..." required></textarea>
+        <button type="submit">デコード</button>
+    </form>
+    <div id="decode-result" aria-live="polite"></div>
+</article>
+{% endblock %}

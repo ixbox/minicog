@@ -1,0 +1,33 @@
+{#
+  トークン発行の結果（htmx のフラグメント）。
+  context:
+    error         エラーメッセージ（あれば他は無い）
+    user, clientId, tokens[{key, label, value, decoded}], accessToken, warning
+#}
+{% if error %}
+    <p class="flash error">{{ error }}</p>
+{% else %}
+    <hr>
+    <p class="flash notice">{{ user.username }} のトークンを client <code>{{ clientId }}</code> で発行しました。</p>
+    {% if warning %}<p class="flash error">{{ warning }}</p>{% endif %}
+
+    {% for token in tokens %}
+        <label for="token-{{ token.key }}">
+            <strong>{{ token.label }}</strong>
+            <button type="button" class="outline secondary" style="padding:.1rem .6rem;font-size:.8em;margin-left:.5rem"
+                    onclick="navigator.clipboard.writeText(document.getElementById('token-{{ token.key }}').value); this.textContent='コピーしました'">コピー</button>
+        </label>
+        <textarea id="token-{{ token.key }}" class="token" readonly>{{ token.value }}</textarea>
+        {% if token.decoded %}
+            <details>
+                <summary>ペイロード</summary>
+                <pre><code>{{ token.decoded.payload|json_encode(constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_SLASHES') b-or constant('JSON_UNESCAPED_UNICODE')) }}</code></pre>
+            </details>
+        {% endif %}
+    {% endfor %}
+
+    <details>
+        <summary>curl の例</summary>
+        <pre><code>curl -H "Authorization: Bearer {{ accessToken }}" http://localhost:3000/api/me</code></pre>
+    </details>
+{% endif %}

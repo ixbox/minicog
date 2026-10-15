@@ -51,6 +51,14 @@ final class TokenService
         return $this->key = $key;
     }
 
+    /**
+     * データの初期化で署名鍵を消したときに、キャッシュした鍵も捨てる。
+     */
+    public function forgetSigningKey(): void
+    {
+        $this->key = null;
+    }
+
     public function jwks(): array
     {
         $key = $this->signingKey();

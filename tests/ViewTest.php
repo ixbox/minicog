@@ -14,19 +14,16 @@ final class ViewTest extends TestCase
         $this->client->createGroup(['UserPoolId' => self::POOL_ID, 'GroupName' => 'admins']);
         $this->client->adminAddUserToGroup(['UserPoolId' => self::POOL_ID, 'Username' => 'pending', 'GroupName' => 'admins']);
 
-        $response = $this->get('/admin?error=' . rawurlencode('<b>bad</b>'));
+        $response = $this->get('/admin/users');
         $html = (string) $response->getBody();
 
         $this->assertSame(200, $response->getStatusCode());
         $this->assertSame('text/html; charset=utf-8', $response->getHeaderLine('Content-Type'));
         $this->assertStringContainsString('&lt;script&gt;alert(1)&lt;/script&gt;', $html);
         $this->assertStringNotContainsString('<script>alert(1)', $html);
-        $this->assertStringContainsString('&lt;b&gt;bad&lt;/b&gt;', $html);
-        $this->assertStringContainsString('/admin/users/%3Cscript%3Ealert%281%29%3C%2Fscript%3E/delete', $html);
-        $this->assertStringContainsString('<code>123456</code> <small>signUp</small>', $html);
-        $this->assertStringContainsString('/admin/users/pending/confirm', $html);
+        $this->assertStringContainsString('href="/admin/users/%3Cscript%3Ealert%281%29%3C%2Fscript%3E"', $html);
+        $this->assertStringContainsString('<code>123456</code> <small class="muted">signUp</small>', $html);
         $this->assertStringContainsString('admins', $html);
-        $this->assertStringContainsString('任意の ClientId を受け付けます', $html);
     }
 
     public function testErrorPageEscapes(): void
@@ -58,7 +55,7 @@ final class ViewTest extends TestCase
             $this->assertStringContainsString('<title>Custom - MiniCog</title>', $html, '同梱の layout を継承できる');
 
             // 差し替えていないテンプレートは同梱のものが使われる
-            $this->assertStringContainsString('ユーザー一覧', (string) $this->get('/admin')->getBody());
+            $this->assertStringContainsString('新規ユーザー作成', (string) $this->get('/admin/users')->getBody());
         } finally {
             unlink($dir . '/login.html.twig');
             rmdir($dir);

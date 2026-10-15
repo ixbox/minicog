@@ -1,0 +1,77 @@
+{#
+  context:
+    users          ユーザー一覧（UserPool::all()）
+    groupsByUser   ユーザー名 → 所属グループ名の配列
+#}
+{% extends 'admin/_layout.html.twig' %}
+{% import 'admin/_macros.html.twig' as m %}
+
+{% block title %}ユーザー{% endblock %}
+
+{% block content %}
+<header class="page">
+    <h2>ユーザー <small class="muted">{{ users|length }}</small></h2>
+</header>
+
+<details {% if users is empty %}open{% endif %}>
+    <summary role="button" class="outline">新規ユーザー作成</summary>
+    <article>
+        <form method="post" action="/admin/users">
+            <div class="grid">
+                <label>ユーザー名{% if config.usernameAttributes is not empty %}（{{ config.usernameAttributes|join(' / ') }}）{% endif %}
+                    <input type="text" name="username" required autocomplete="off">
+                </label>
+                <label>パスワード
+                    <input type="text" name="password" required autocomplete="off">
+                </label>
+                <label>メール（任意）
+                    <input type="email" name="email" autocomplete="off">
+                </label>
+            </div>
+            <label>
+                <input type="checkbox" name="confirmed" value="1" checked>
+                確認済み（email_verified=true）で作成する
+            </label>
+            <button type="submit">作成</button>
+        </form>
+    </article>
+</details>
+
+{% if users is empty %}
+    <p class="muted">ユーザーが登録されていません。</p>
+{% else %}
+    <div class="overflow-auto">
+        <table class="striped">
+            <thead>
+            <tr>
+                <th>ユーザー名</th>
+                <th>メール</th>
+                <th>ステータス</th>
+                <th>グループ</th>
+                <th>未使用コード</th>
+                <th>作成日時</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for user in users %}
+                <tr>
+                    <td>
+                        <a href="/admin/users/{{ user.username|url_encode }}">{{ user.username }}</a><br>
+                        <small class="muted mono">{{ user.attributes.sub }}</small>
+                    </td>
+                    <td>{{ user.attributes.email ?? '-' }}</td>
+                    <td>{{ m.status(user) }}</td>
+                    <td>{{ (groupsByUser[user.username] ?? [])|join(', ')|default('-') }}</td>
+                    <td>
+                        {% for purpose, code in user.codes %}
+                            <code>{{ code.code }}</code> <small class="muted">{{ purpose }}</small><br>
+                        {% endfor %}
+                    </td>
+                    <td><small>{{ m.time(user.createdAt) }}</small></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endif %}
+{% endblock %}

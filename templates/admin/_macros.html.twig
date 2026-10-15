@@ -1,0 +1,16 @@
+{% macro status(user) %}
+    {% set labels = {
+        CONFIRMED: ['確認済み', 'ok'],
+        UNCONFIRMED: ['未確認', 'warn'],
+        FORCE_CHANGE_PASSWORD: ['要パスワード変更', 'warn'],
+        RESET_REQUIRED: ['要パスワードリセット', 'warn'],
+    } %}
+    {% set label = labels[user.status] ?? [user.status, ''] %}
+    <span class="badge {{ label[1] }}">{{ label[0] }}</span>
+    {% if not user.enabled %}<span class="badge off">無効</span>{% endif %}
+{% endmacro %}
+
+{# Unix 時刻を <time> で出す。表示はブラウザ側でローカル時刻に変換する（assets/minicog.js） #}
+{% macro time(timestamp, seconds = false) %}
+    <time datetime="{{ timestamp|date('c', 'UTC') }}" data-local="{{ seconds ? 'seconds' : 'minutes' }}">{{ timestamp|date(seconds ? 'Y-m-d H:i:s' : 'Y-m-d H:i', 'UTC') }} UTC</time>
+{%- endmacro %}

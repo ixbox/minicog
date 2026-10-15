@@ -63,7 +63,7 @@ try {
         // git が無い環境では dev のまま
     }
 
-    foreach (['src', 'templates', 'public', 'composer.json', 'composer.lock'] as $path) {
+    foreach (['src', 'templates', 'public', 'assets', 'composer.json', 'composer.lock'] as $path) {
         $copy("$root/$path", "$stage/$path");
     }
 
@@ -82,7 +82,7 @@ try {
     $phar->startBuffering();
     $phar->buildFromIterator(new CallbackFilterIterator(
         new RecursiveIteratorIterator(new RecursiveDirectoryIterator($stage, FilesystemIterator::SKIP_DOTS)),
-        static fn (SplFileInfo $file) => preg_match('#^(src|templates|public|vendor)/#', substr($file->getPathname(), strlen($stage) + 1)) === 1,
+        static fn (SplFileInfo $file) => preg_match('#^(src|templates|public|assets|vendor)/#', substr($file->getPathname(), strlen($stage) + 1)) === 1,
     ), $stage);
     $phar->setStub(str_replace('@version@', $version, file_get_contents("$root/phar/stub.php")));
     $phar->stopBuffering();

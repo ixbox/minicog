@@ -1,0 +1,148 @@
+{#
+  context:
+    user           ユーザー
+    memberOf       所属グループ名の配列
+    otherGroups    未所属のグループ名の配列
+    sessionCount   有効なセッション（リフレッシュトークン）の数
+#}
+{% extends 'admin/_layout.html.twig' %}
+{% import 'admin/_macros.html.twig' as m %}
+
+{% set path = '/admin/users/' ~ user.username|url_encode %}
+
+{% block title %}{{ user.username }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb"><ul><li><a href="/admin/users">ユーザー</a></li><li>{{ user.username }}</li></ul></nav>
+
+<header class="page">
+    <h2>{{ user.username }} {{ m.status(user) }}</h2>
+    <a href="/admin/tokens?username={{ user.username|url_encode }}" role="button" class="outline">トークンを発行</a>
+</header>
+<p class="muted">
+    sub <code class="wrap">{{ user.attributes.sub }}</code> ·
+    作成 {{ m.time(user.createdAt, true) }} · 更新 {{ m.time(user.updatedAt, true) }}
+</p>
+
+<div class="grid">
+    <article>
+        <header><strong>状態</strong></header>
+        <p>ステータス: {{ user.status }}<br>有効なセッション: {{ sessionCount }}</p>
+        <div class="actions">
+            {% if user.status == 'UNCONFIRMED' %}
+                <form method="post" action="{{ path }}/confirm"><button type="submit">確認済みにする</button></form>
+            {% endif %}
+            {% if user.enabled %}
+                <form method="post" action="{{ path }}/disable"><button type="submit" class="secondary">無効にする</button></form>
+            {% else %}
+                <form method="post" action="{{ path }}/enable"><button type="submit">有効にする</button></form>
+            {% endif %}
+            <form method="post" action="{{ path }}/signout" hx-confirm="すべてのセッションのトークンを無効にします。よろしいですか？">
+                <button type="submit" class="secondary outline">全セッションをサインアウト</button>
+            </form>
+        </div>
+    </article>
+
+    <article>
+        <header><strong>パスワード</strong></header>
+        <form method="post" action="{{ path }}/password">
+            <fieldset role="group">
+                <input type="text" name="password" placeholder="新しいパスワード" required autocomplete="off">
+                <button type="submit">設定</button>
+            </fieldset>
+            <label>
+                <input type="checkbox" name="permanent" value="1" checked>
+                恒久パスワードにする（外すと一時パスワードになり、次回サインインで変更を求める）
+            </label>
+        </form>
+    </article>
+</div>
+
+<article>
+    <header><strong>属性</strong></header>
+    <div class="overflow-auto">
+        <table>
+            <thead><tr><th>名前</th><th>値</th><th></th></tr></thead>
+            <tbody>
+            {% for name, value in user.attributes %}
+                <tr>
+                    <td><code>{{ name }}</code></td>
+                    <td class="mono">{{ value }}</td>
+                    <td>
+                        {% if name != 'sub' %}
+                            <form method="post" action="{{ path }}/attributes/{{ name|url_encode }}/delete" hx-confirm="属性 {{ name }} を削除しますか？">
+                                <button type="submit" class="secondary outline">削除</button>
+                            </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <form method="post" action="{{ path }}/attributes">
+        <fieldset role="group">
+            <input type="text" name="name" placeholder="属性名（例: name, custom:tenant）" list="attribute-names" required autocomplete="off">
+            <input type="text" name="value" placeholder="値" autocomplete="off">
+            <button type="submit">追加・更新</button>
+        </fieldset>
+        <datalist id="attribute-names">
+            {% for name in ['email', 'email_verified', 'phone_number', 'phone_number_verified', 'name', 'given_name', 'family_name', 'preferred_username', 'locale', 'zoneinfo'] %}
+                <option value="{{ name }}">
+            {% endfor %}
+        </datalist>
+        <small class="muted">email や phone_number を変えると、*_verified は false になります（同時に指定した場合を除く）。</small>
+    </form>
+</article>
+
+<div class="grid">
+    <article>
+        <header><strong>グループ</strong></header>
+        {% if memberOf is empty %}
+            <p class="muted">所属していません。</p>
+        {% else %}
+            <ul>
+                {% for group in memberOf %}
+                    <li>
+                        <a href="/admin/groups/{{ group|url_encode }}">{{ group }}</a>
+                        <form method="post" action="{{ path }}/groups/{{ group|url_encode }}/delete">
+                            <button type="submit" class="secondary outline">外す</button>
+                        </form>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+        {% if otherGroups is not empty %}
+            <form method="post" action="{{ path }}/groups">
+                <fieldset role="group">
+                    <select name="group" required>
+                        {% for group in otherGroups %}<option>{{ group }}</option>{% endfor %}
+                    </select>
+                    <button type="submit">追加</button>
+                </fieldset>
+            </form>
+        {% elseif memberOf is empty %}
+            <p><a href="/admin/groups">グループを作成する</a></p>
+        {% endif %}
+    </article>
+
+    <article>
+        <header><strong>未使用の確認コード</strong></header>
+        {% if user.codes is empty %}
+            <p class="muted">ありません。</p>
+        {% else %}
+            <table>
+                <tbody>
+                {% for purpose, code in user.codes %}
+                    <tr><td>{{ purpose }}</td><td><code>{{ code.code }}</code></td><td><small>{{ m.time(code.expiresAt) }} まで</small></td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% endif %}
+    </article>
+</div>
+
+<form method="post" action="{{ path }}/delete" hx-confirm="ユーザー {{ user.username }} を削除します。元に戻せません。">
+    <button type="submit" class="danger">このユーザーを削除</button>
+</form>
+{% endblock %}

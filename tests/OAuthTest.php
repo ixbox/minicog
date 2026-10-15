@@ -186,7 +186,8 @@ final class OAuthTest extends TestCase
         $this->assertNull($this->minicog->users->find('user name'));
 
         $missing = $this->post('/admin/users/ghost/delete', []);
-        $this->assertStringStartsWith('/admin?error=', $missing->getHeaderLine('Location'));
+        $this->assertSame('/admin/users/ghost', $missing->getHeaderLine('Location'));
+        $this->assertStringContainsString('minicog_flash=', $missing->getHeaderLine('Set-Cookie'));
     }
 
     public function testCorsPreflight(): void

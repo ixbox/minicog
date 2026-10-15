@@ -1,0 +1,36 @@
+{#
+  管理画面の共通レイアウト。htmx の hx-boost でリンクとフォームを非同期にする。
+  context:
+    section   ナビゲーションで強調する項目（users / groups / tokens / settings）
+    flash     {type: notice|error, message} または null
+#}
+{% extends 'layout.html.twig' %}
+
+{% block head %}
+    <script src="/assets/htmx.min.js" defer></script>
+    <script src="/assets/minicog.js" defer></script>
+{% endblock %}
+
+{% block body_attributes %}hx-boost="true"{% endblock %}
+
+{% block body %}
+<header class="container">
+    <nav>
+        <ul>
+            <li><strong>MiniCog</strong></li>
+            <li class="pool muted">{{ config.userPoolId }}</li>
+        </ul>
+        <ul>
+            {% for key, label in {users: 'ユーザー', groups: 'グループ', tokens: 'トークン', settings: '設定'} %}
+                <li><a href="/admin/{{ key }}" {% if section == key %}aria-current="page"{% endif %}>{{ label }}</a></li>
+            {% endfor %}
+        </ul>
+    </nav>
+</header>
+<main class="container">
+    {% if flash %}
+        <p class="flash {{ flash.type }}" role="status">{{ flash.message }}</p>
+    {% endif %}
+    {% block content %}{% endblock %}
+</main>
+{% endblock %}

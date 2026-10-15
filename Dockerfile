@@ -14,6 +14,7 @@ RUN composer install --no-dev --no-interaction --no-progress --no-scripts --no-a
 COPY public ./public
 COPY src ./src
 COPY templates ./templates
+COPY assets ./assets
 RUN composer dump-autoload --no-dev --optimize --classmap-authoritative
 
 RUN mkdir -p /data && chown www-data:www-data /data

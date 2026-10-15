@@ -1,0 +1,94 @@
+{#
+  context:
+    counts      {users, groups, sessions}
+    kid         署名鍵の kid
+    endpoints   名前 → URL
+#}
+{% extends 'admin/_layout.html.twig' %}
+
+{% block title %}設定{% endblock %}
+
+{% block content %}
+<header class="page"><h2>設定</h2></header>
+<p class="muted">設定は環境変数と MINICOG_CONFIG の JSON で変更します（変更後は再起動）。</p>
+
+<div class="grid">
+    <article>
+        <header><strong>ユーザープール</strong></header>
+        <table>
+            <tbody>
+            <tr><th>UserPoolId</th><td><code>{{ config.userPoolId }}</code></td></tr>
+            <tr><th>名前</th><td>{{ config.userPoolName }}</td></tr>
+            <tr><th>リージョン</th><td>{{ config.region() }}</td></tr>
+            <tr><th>ユーザー名属性</th><td>{{ config.usernameAttributes|join(', ')|default('なし（任意のユーザー名）') }}</td></tr>
+            <tr><th>エイリアス属性</th><td>{{ config.aliasAttributes|join(', ')|default('なし') }}</td></tr>
+            <tr><th>確認コード</th><td>{{ config.fixedCode ? '固定（' ~ config.fixedCode ~ '）' : 'ランダム 6 桁' }}</td></tr>
+            </tbody>
+        </table>
+    </article>
+    <article>
+        <header><strong>パスワードポリシーとトークン</strong></header>
+        <table>
+            <tbody>
+            <tr><th>最小文字数</th><td>{{ config.passwordPolicy.MinimumLength ?? 8 }}</td></tr>
+            {% for rule, label in {RequireUppercase: '大文字', RequireLowercase: '小文字', RequireNumbers: '数字', RequireSymbols: '記号'} %}
+                <tr><th>{{ label }}</th><td>{{ (config.passwordPolicy[rule] ?? false) ? '必須' : '-' }}</td></tr>
+            {% endfor %}
+            <tr><th>アクセス / ID トークン</th><td>{{ config.accessTokenTtl }} 秒 / {{ config.idTokenTtl }} 秒</td></tr>
+            <tr><th>リフレッシュトークン</th><td>{{ (config.refreshTokenTtl / 86400)|round(1) }} 日</td></tr>
+            </tbody>
+        </table>
+    </article>
+</div>
+
+<article>
+    <header><strong>エンドポイント</strong></header>
+    <table>
+        <tbody>
+        {% for name, url in endpoints %}
+            <tr><th>{{ name }}</th><td><code class="wrap">{{ url }}</code></td></tr>
+        {% endfor %}
+        <tr><th>署名鍵 kid</th><td><code class="wrap">{{ kid }}</code></td></tr>
+        </tbody>
+    </table>
+</article>
+
+<article>
+    <header><strong>クライアント</strong></header>
+    {% if config.clients is empty %}
+        <p>clients が設定されていないため、任意の ClientId を秘密鍵なしのクライアントとして受け付けます。</p>
+    {% else %}
+        <div class="overflow-auto">
+            <table>
+                <thead><tr><th>ClientId</th><th>シークレット</th><th>コールバック URL</th><th>ログアウト URL</th><th>スコープ</th></tr></thead>
+                <tbody>
+                {% for client in config.clients %}
+                    <tr>
+                        <td><code>{{ client.clientId }}</code></td>
+                        <td>{% if client.clientSecret is defined and client.clientSecret %}<code class="wrap">{{ client.clientSecret }}</code>{% else %}-{% endif %}</td>
+                        <td>{{ (client.callbackUrls ?? [])|join(', ')|default('制限なし') }}</td>
+                        <td>{{ (client.logoutUrls ?? [])|join(', ')|default('制限なし') }}</td>
+                        <td>{{ (client.allowedScopes ?? [])|join(' ')|default('既定') }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+</article>
+
+<article>
+    <header><strong>データの初期化</strong></header>
+    <p>
+        ユーザー {{ counts.users }} 人、グループ {{ counts.groups }} 個、有効なセッション {{ counts.sessions }} 件。
+        初期化すると、これらと進行中のログイン・認可コードをすべて消します。
+    </p>
+    <form method="post" action="/admin/reset" hx-confirm="すべてのユーザー、グループ、セッションを削除します。元に戻せません。">
+        <label>
+            <input type="checkbox" name="rotate_key" value="1">
+            署名鍵も作り直す（発行済みのトークンはすべて検証できなくなり、アプリ側でキャッシュした JWKS も更新が必要になります）
+        </label>
+        <button type="submit" class="danger">初期化する</button>
+    </form>
+</article>
+{% endblock %}

@@ -9,6 +9,7 @@ use GuzzleHttp\Psr7\ServerRequest;
 use MiniCog\Cognito\CognitoException;
 use MiniCog\Cognito\CognitoService;
 use MiniCog\Cognito\UserPool;
+use MiniCog\Http\Admin\AdminRoutes;
 use MiniCog\Config;
 use MiniCog\OAuth\OAuthController;
 use MiniCog\TokenService;
@@ -26,7 +27,7 @@ use function FastRoute\simpleDispatcher;
 final class App
 {
     private readonly OAuthController $oauth;
-    private readonly AdminController $admin;
+    private readonly AdminRoutes $admin;
     private readonly Dispatcher $dispatcher;
 
     public function __construct(
@@ -38,7 +39,7 @@ final class App
     ) {
         $view = new View(['config' => $config], $config->templatesDir);
         $this->oauth = new OAuthController($config, $users, $tokens, $view);
-        $this->admin = new AdminController($users, $view);
+        $this->admin = new AdminRoutes($view, $config, $users, $tokens);
         $this->dispatcher = simpleDispatcher($this->routes(...));
     }
 
@@ -96,11 +97,10 @@ final class App
         $r->post('/oauth2/revoke', fn ($request) => $this->oauth->revoke($request));
         $r->get('/logout', fn ($request) => $this->oauth->logout($request));
 
-        // 管理画面
+        // 管理画面と静的ファイル
         $r->get('/', fn () => new Response(302, ['Location' => '/admin']));
-        $r->get('/admin', fn ($request) => $this->admin->index($request));
-        $r->post('/admin/users', fn ($request) => $this->admin->create($request));
-        $r->post('/admin/users/{username}/{action:confirm|delete}', fn ($request, array $vars) => $this->adminAction($vars['action'], $vars['username']));
+        $this->admin->register($r);
+        $r->get('/assets/{file:[a-z0-9.\-]+}', fn ($request, array $vars) => self::asset($request, $vars['file']));
 
         $r->get('/health', fn () => self::json(['status' => 'ok']));
     }
@@ -115,13 +115,26 @@ final class App
             : self::json(['error' => 'Not Found'], 404);
     }
 
-    private function adminAction(string $action, string $username): ResponseInterface
+    /**
+     * 同梱の CSS / JS（assets/）を返す。phar やオフラインでも CDN なしで動くように同梱している。
+     */
+    private static function asset(ServerRequestInterface $request, string $file): ResponseInterface
     {
-        try {
-            return $action === 'confirm' ? $this->admin->confirm($username) : $this->admin->delete($username);
-        } catch (CognitoException $e) {
-            return new Response(303, ['Location' => '/admin?' . http_build_query(['error' => $e->getMessage()])]);
+        $types = ['css' => 'text/css; charset=utf-8', 'js' => 'text/javascript; charset=utf-8'];
+        $path = __DIR__ . '/../../assets/' . $file;
+        $type = $types[pathinfo($file, PATHINFO_EXTENSION)] ?? null;
+        if ($type === null || !is_file($path)) {
+            return self::json(['error' => 'Not Found'], 404);
         }
+
+        // MiniCog を更新したときに古いファイルが残らないよう、毎回 ETag で再検証させる
+        $etag = '"' . md5_file($path) . '"';
+        $headers = ['Content-Type' => $type, 'Cache-Control' => 'no-cache', 'ETag' => $etag];
+        if ($request->getHeaderLine('If-None-Match') === $etag) {
+            return new Response(304, $headers);
+        }
+
+        return new Response(200, $headers, file_get_contents($path));
     }
 
     private function cognitoApi(ServerRequestInterface $request): ResponseInterface

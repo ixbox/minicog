@@ -15,9 +15,7 @@ composer install
 composer serve            # = php -S localhost:9229 public/index.php
 ```
 
-- 管理画面: <http://localhost:9229/admin>
-  - ユーザーの作成・確認・削除ができます。
-  - 未使用の確認コードも一覧に表示されます。
+- 管理画面: <http://localhost:9229/admin>（[管理画面](#管理画面)）
 - 状態（ユーザー、署名鍵、セッション）の保存先は `data/minicog.json` です。
   - このファイルを消すと初期化されます。
 - 確認コードと一時パスワードは標準エラーのログにも出ます。
@@ -312,6 +310,21 @@ if ($this->app->environment('local', 'testing')) {
 | `POST /oauth2/revoke` | |
 | `GET /logout` | `logout_uri` へのリダイレクト、または `redirect_uri` を付けての再ログイン |
 
+### 管理画面
+
+`/admin` で開きます。サーバーとして起動したとき（`php -S`、phar、Docker）だけ使えます。
+
+| 画面 | できること |
+|---|---|
+| ユーザー | 一覧（ステータス、グループ、未使用の確認コード）、作成。詳細画面で、属性の追加・編集・削除、パスワードの設定（恒久 / 一時）、有効・無効の切り替え、確認、全セッションのサインアウト、グループへの追加、削除 |
+| グループ | 一覧、作成（説明、優先度）、メンバーの追加・削除、削除 |
+| トークン | 選んだユーザーのトークンをパスワードなしで発行する（クライアントとスコープを指定）。JWT を貼り付けて、デコードと署名・期限の検証をする |
+| 設定 | ユーザープール、パスワードポリシー、エンドポイント、クライアントの設定の表示。データの初期化（署名鍵を作り直すかどうかを選べる） |
+
+- 画面遷移と操作は htmx（`hx-boost`）で非同期に行います。
+- 見た目は Pico CSS です。htmx と Pico は `assets/` に同梱しているので、オフラインや phar でも CDN なしで動きます。
+- 日時はブラウザのタイムゾーンで表示します。
+
 ### 画面の差し替え
 
 管理画面とログイン画面は Twig で描画しています。
@@ -319,11 +332,11 @@ if ($this->app->environment('local', 'testing')) {
 
 | ファイル | 画面 |
 |---|---|
-| `layout.html.twig` | 共通レイアウト（`title`、`head`、`body` ブロック） |
+| `layout.html.twig` | 共通レイアウト（`title`、`head`、`body_attributes`、`body` ブロック） |
 | `login.html.twig` | ログイン画面 |
 | `error.html.twig` | エラー画面 |
 | `signed_out.html.twig` | サインアウト完了 |
-| `admin.html.twig` | 管理画面 |
+| `admin/*.html.twig` | 管理画面（`_` で始まるものは部品や htmx のフラグメント） |
 
 ログイン画面を自分のアプリの見た目に合わせたい場合は、`MINICOG_TEMPLATES_DIR`（インプロセスで使う場合は `templatesDir`）にディレクトリを指定します。
 そこに同じ名前のファイルを置くと、同梱のテンプレートより優先されます。

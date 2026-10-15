@@ -1,0 +1,27 @@
+/* MiniCog の Pico CSS への追加分 */
+:root { --pico-font-size: 95%; }
+.error { color: var(--pico-del-color); }
+.notice { color: var(--pico-ins-color); }
+.muted { color: var(--pico-muted-color); }
+.mono, code.wrap { font-family: var(--pico-font-family-monospace); word-break: break-all; }
+.narrow { max-width: 28rem; padding-top: 10vh; }
+.flash { padding: .75rem 1rem; border-left: .25rem solid; }
+.flash.notice { border-color: var(--pico-ins-color); }
+.flash.error { border-color: var(--pico-del-color); }
+.badge { display: inline-block; padding: .1rem .5rem; border-radius: 1rem; font-size: .8em;
+         background: var(--pico-secondary-background); color: var(--pico-secondary-inverse); white-space: nowrap; }
+.badge.ok { background: var(--pico-ins-color); }
+.badge.warn { background: #c27c0e; }
+.badge.off { background: var(--pico-del-color); }
+table form, td form, li form { margin: 0; display: inline; }
+/* Pico の [type=submit] より強くするため :is() で詳細度を上げる */
+:is(td, li) :is(button, [type=submit], [role=button]) { padding: .15rem .6rem; font-size: .8em; margin: 0; width: auto; }
+fieldset[role=group] :is(button, [type=submit]) { white-space: nowrap; width: auto; }
+:is(button, [type=submit], [role=button]).danger { width: auto; --pico-background-color: var(--pico-del-color); --pico-border-color: var(--pico-del-color); }
+textarea.token { font-family: var(--pico-font-family-monospace); font-size: .75em; min-height: 6rem; }
+pre { padding: .75rem; font-size: .8em; max-height: 24rem; overflow: auto; }
+nav .pool { font-size: .8em; }
+header.page { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: .5rem; }
+.actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.actions form { margin: 0; }
+.actions :is(button, [type=submit]) { margin: 0; width: auto; }

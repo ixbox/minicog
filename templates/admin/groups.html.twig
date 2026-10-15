@@ -1,0 +1,46 @@
+{#
+  context:
+    groups   グループ一覧（UserPool::groups()）
+#}
+{% extends 'admin/_layout.html.twig' %}
+
+{% block title %}グループ{% endblock %}
+
+{% block content %}
+<header class="page">
+    <h2>グループ <small class="muted">{{ groups|length }}</small></h2>
+</header>
+
+<details {% if groups is empty %}open{% endif %}>
+    <summary role="button" class="outline">新規グループ作成</summary>
+    <article>
+        <form method="post" action="/admin/groups">
+            <div class="grid">
+                <label>グループ名 <input type="text" name="name" required autocomplete="off"></label>
+                <label>説明（任意） <input type="text" name="description" autocomplete="off"></label>
+                <label>優先度（任意）<input type="number" name="precedence" min="0"></label>
+            </div>
+            <small class="muted">優先度の数字が小さいグループほど、トークンの cognito:groups で先に並びます。</small>
+            <button type="submit">作成</button>
+        </form>
+    </article>
+</details>
+
+{% if groups is empty %}
+    <p class="muted">グループがありません。</p>
+{% else %}
+    <table class="striped">
+        <thead><tr><th>グループ名</th><th>説明</th><th>優先度</th><th>メンバー</th></tr></thead>
+        <tbody>
+        {% for group in groups %}
+            <tr>
+                <td><a href="/admin/groups/{{ group.name|url_encode }}">{{ group.name }}</a></td>
+                <td>{{ group.description ?? '-' }}</td>
+                <td>{{ group.precedence ?? '-' }}</td>
+                <td>{{ group.members|length }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+{% endif %}
+{% endblock %}

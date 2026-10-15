@@ -3,6 +3,10 @@
 {% block title %}Error{% endblock %}
 
 {% block body %}
-    <h1>Error</h1>
-    <p>{{ message }}</p>
+<main class="container narrow">
+    <article>
+        <header><h2 style="margin: 0">Error</h2></header>
+        <p class="error">{{ message }}</p>
+    </article>
+</main>
 {% endblock %}

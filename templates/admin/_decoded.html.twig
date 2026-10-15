@@ -1,0 +1,24 @@
+{#
+  JWT のデコード結果（htmx のフラグメント）。
+  context:
+    error         エラーメッセージ（あれば他は無い）
+    header, payload, verification{ok, message, issuer?}, times{iat?, exp?, auth_time?}
+#}
+{% import 'admin/_macros.html.twig' as m %}
+{% if error %}
+    <p class="flash error">{{ error }}</p>
+{% else %}
+    <hr>
+    <p class="flash {{ verification.ok ? 'notice' : 'error' }}">{{ verification.message }}</p>
+    {% if verification.issuer is defined %}<p class="flash error">{{ verification.issuer }}</p>{% endif %}
+    {% if times is not empty %}
+        <p class="muted">
+            {% for name, time in times %}{{ name }}: {{ m.time(time, true) }}{% if not loop.last %} · {% endif %}{% endfor %}
+        </p>
+    {% endif %}
+    {% set flags = constant('JSON_PRETTY_PRINT') b-or constant('JSON_UNESCAPED_SLASHES') b-or constant('JSON_UNESCAPED_UNICODE') %}
+    <div class="grid">
+        <div><strong>ヘッダー</strong><pre><code>{{ header|json_encode(flags) }}</code></pre></div>
+        <div><strong>ペイロード</strong><pre><code>{{ payload|json_encode(flags) }}</code></pre></div>
+    </div>
+{% endif %}
