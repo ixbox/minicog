@@ -70,19 +70,117 @@ volumes:
 | `MINICOG_BASE_URL` | `http://localhost:9229` | issuer と OAuth エンドポイントの URL の元になる |
 | `MINICOG_ISSUER` | `{baseUrl}/{userPoolId}` | JWT の `iss` を上書きする |
 | `MINICOG_FIXED_CODE` | ランダム 6 桁 | 確認コードを固定する（E2E テスト向け） |
+| `MINICOG_TEMPLATES_DIR` | なし | 同梱の Twig テンプレートを上書きするディレクトリ（[画面の差し替え](#画面の差し替え)） |
 | `MINICOG_DEBUG` | なし | `1` にすると API 呼び出しをログに出す |
 
 `clients` を設定しない場合は、どの `ClientId` も秘密鍵なしのクライアントとして受け付けます。
 `clientSecret` を設定したクライアントでは `SECRET_HASH` が必須です。
 
-### 各クライアントからの接続
+### AWS CLI から使う
+
+接続先の切り替え方は 2 通りあります。
+
+**プロファイルを作る（おすすめ）**
+
+`~/.aws/config` に MiniCog 用のプロファイルを追加します。
+
+```ini
+[profile minicog]
+region = ap-northeast-1
+services = minicog
+
+[services minicog]
+cognito_identity_provider =
+  endpoint_url = http://localhost:9229
+```
+
+`~/.aws/credentials` にはダミーの認証情報を入れます。
+MiniCog は署名を検証しないので、値は何でも構いません。
+
+```ini
+[minicog]
+aws_access_key_id = local
+aws_secret_access_key = local
+```
+
+このプロファイルは `cognito-idp` だけを MiniCog に向けます。
+`services` のキーは `cognito-idp` ではなく `cognito_identity_provider` です。
+キーを間違えると、エラーにならずに本物の AWS へ送信されます。
+認証情報をダミーにしておけば、その場合も `UnrecognizedClientException` で失敗するだけで済みます。
 
 ```sh
-# AWS CLI
-AWS_ENDPOINT_URL=http://localhost:9229 aws cognito-idp initiate-auth \
-  --client-id web --auth-flow USER_PASSWORD_AUTH \
-  --auth-parameters USERNAME=alice,PASSWORD=password123
+export AWS_PROFILE=minicog
 ```
+
+**環境変数で指定する**
+
+```sh
+export AWS_ENDPOINT_URL_COGNITO_IDENTITY_PROVIDER=http://localhost:9229
+export AWS_REGION=ap-northeast-1 AWS_ACCESS_KEY_ID=local AWS_SECRET_ACCESS_KEY=local
+```
+
+`AWS_ENDPOINT_URL` を使うと、全サービスの接続先がまとめて切り替わります。
+
+#### よく使うコマンド
+
+```sh
+POOL=ap-northeast-1_minicog   # MINICOG_USER_POOL_ID を変えた場合はその値
+
+# すぐにサインインできるユーザーを作る
+aws cognito-idp admin-create-user --user-pool-id $POOL --username alice \
+  --user-attributes Name=email,Value=alice@example.com Name=email_verified,Value=true \
+  --message-action SUPPRESS
+aws cognito-idp admin-set-user-password --user-pool-id $POOL --username alice \
+  --password password123 --permanent
+
+# サインインしてトークンを取得する
+aws cognito-idp initiate-auth --client-id web --auth-flow USER_PASSWORD_AUTH \
+  --auth-parameters USERNAME=alice,PASSWORD=password123
+
+# アクセストークンを変数に取り、本人の情報を取得する
+ACCESS=$(aws cognito-idp initiate-auth --client-id web --auth-flow USER_PASSWORD_AUTH \
+  --auth-parameters USERNAME=alice,PASSWORD=password123 \
+  --query AuthenticationResult.AccessToken --output text)
+aws cognito-idp get-user --access-token "$ACCESS"
+
+# リフレッシュトークンで更新する
+REFRESH=$(aws cognito-idp initiate-auth --client-id web --auth-flow USER_PASSWORD_AUTH \
+  --auth-parameters USERNAME=alice,PASSWORD=password123 \
+  --query AuthenticationResult.RefreshToken --output text)
+aws cognito-idp initiate-auth --client-id web --auth-flow REFRESH_TOKEN_AUTH \
+  --auth-parameters REFRESH_TOKEN="$REFRESH"
+```
+
+```sh
+# サインアップして確認する（コードはサーバーのログと管理画面に出る）
+aws cognito-idp sign-up --client-id web --username bob --password password123 \
+  --user-attributes Name=email,Value=bob@example.com
+aws cognito-idp confirm-sign-up --client-id web --username bob --confirmation-code 123456
+
+# 一時パスワードでユーザーを作り、初回サインインで新しいパスワードを設定する
+aws cognito-idp admin-create-user --user-pool-id $POOL --username carol \
+  --temporary-password 'Temp1234!' --message-action SUPPRESS
+SESSION=$(aws cognito-idp initiate-auth --client-id web --auth-flow USER_PASSWORD_AUTH \
+  --auth-parameters 'USERNAME=carol,PASSWORD=Temp1234!' --query Session --output text)
+aws cognito-idp respond-to-auth-challenge --client-id web \
+  --challenge-name NEW_PASSWORD_REQUIRED --session "$SESSION" \
+  --challenge-responses USERNAME=carol,NEW_PASSWORD=newpassword1
+```
+
+```sh
+# グループとユーザーの検索
+aws cognito-idp create-group --user-pool-id $POOL --group-name admins
+aws cognito-idp admin-add-user-to-group --user-pool-id $POOL --username alice --group-name admins
+aws cognito-idp list-users --user-pool-id $POOL --filter 'email ^= "alice"'
+aws cognito-idp list-users-in-group --user-pool-id $POOL --group-name admins
+aws cognito-idp admin-delete-user --user-pool-id $POOL --username bob
+```
+
+- `clients` を設定していない場合、`--client-id` には任意の文字列を指定できます。
+- `clientSecret` を設定したクライアントでは、`SECRET_HASH`（`base64(HMAC-SHA256(secret, username + clientId))`）を `--auth-parameters` に加える必要があります。
+- 対応していないオペレーションを呼ぶと `UnknownOperationException` が返ります。
+
+### 各クライアントからの接続
 
 ```js
 // AWS SDK for JavaScript v3
@@ -186,6 +284,26 @@ if ($this->app->environment('local', 'testing')) {
 | `GET /oauth2/userInfo` | |
 | `POST /oauth2/revoke` | |
 | `GET /logout` | `logout_uri` へのリダイレクト、または `redirect_uri` を付けての再ログイン |
+
+### 画面の差し替え
+
+管理画面とログイン画面は Twig で描画しています。
+テンプレートは `templates/` にあります。
+
+| ファイル | 画面 |
+|---|---|
+| `layout.html.twig` | 共通レイアウト（`title`、`head`、`body` ブロック） |
+| `login.html.twig` | ログイン画面 |
+| `error.html.twig` | エラー画面 |
+| `signed_out.html.twig` | サインアウト完了 |
+| `admin.html.twig` | 管理画面 |
+
+ログイン画面を自分のアプリの見た目に合わせたい場合は、`MINICOG_TEMPLATES_DIR`（インプロセスで使う場合は `templatesDir`）にディレクトリを指定します。
+そこに同じ名前のファイルを置くと、同梱のテンプレートより優先されます。
+置かなかったテンプレートは同梱のものが使われます。
+同梱の `layout.html.twig` を継承することもできます。
+各テンプレートが受け取る変数は、ファイル先頭のコメントに書いてあります。
+全テンプレートで `config`（`MiniCog\Config`）を参照できます。
 
 ### 未対応
 

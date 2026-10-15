@@ -6,7 +6,7 @@ use GuzzleHttp\Psr7\Response;
 use MiniCog\Cognito\CognitoException;
 use MiniCog\Cognito\UserPool;
 use MiniCog\Config;
-use MiniCog\Http\Html;
+use MiniCog\Http\View;
 use MiniCog\TokenService;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -30,6 +30,7 @@ final class OAuthController
         private readonly Config $config,
         private readonly UserPool $users,
         private readonly TokenService $tokens,
+        private readonly View $view,
     ) {
     }
 
@@ -137,7 +138,7 @@ final class OAuthController
             $client = $this->config->client((string) ($params['client_id'] ?? ''));
             $allowed = $client['logoutUrls'] ?? [];
             if ($client === null || ($allowed !== [] && !in_array($params['logout_uri'], $allowed, true))) {
-                return self::errorPage('logout_uri が許可されていません。', 400);
+                return $this->errorPage('logout_uri が許可されていません。', 400);
             }
 
             return new Response(302, ['Location' => $params['logout_uri'], 'Set-Cookie' => $clear]);
@@ -150,7 +151,7 @@ final class OAuthController
             ]);
         }
 
-        return new Response(200, ['Content-Type' => 'text/html; charset=utf-8', 'Set-Cookie' => $clear], Html::page('Signed out', '<p>サインアウトしました。</p>'));
+        return $this->view->response('signed_out.html.twig', headers: ['Set-Cookie' => $clear]);
     }
 
     private function validateAuthorizeParams(array $params): ?ResponseInterface
@@ -158,13 +159,13 @@ final class OAuthController
         $clientId = (string) ($params['client_id'] ?? '');
         $client = $this->config->client($clientId);
         if ($clientId === '' || $client === null) {
-            return self::errorPage('client_id が不正です。', 400);
+            return $this->errorPage('client_id が不正です。', 400);
         }
 
         $redirectUri = (string) ($params['redirect_uri'] ?? '');
         $allowed = $client['callbackUrls'] ?? [];
         if ($redirectUri === '' || ($allowed !== [] && !in_array($redirectUri, $allowed, true))) {
-            return self::errorPage('redirect_uri が許可されていません: ' . $redirectUri, 400);
+            return $this->errorPage('redirect_uri が許可されていません: ' . $redirectUri, 400);
         }
 
         if (!in_array($params['response_type'] ?? '', ['code', 'token'], true)) {
@@ -400,30 +401,12 @@ final class OAuthController
      */
     private function loginForm(array $params, ?string $error = null, string $username = '', ?string $currentPassword = null): ResponseInterface
     {
-        $e = fn (string $value) => htmlspecialchars($value, ENT_QUOTES);
-        $errorHtml = $error === null ? '' : '<p class="error">' . $e($error) . '</p>';
-        $newPassword = $currentPassword !== null;
-        $passwordField = $newPassword
-            ? '<input type="hidden" name="password" value="' . $e($currentPassword) . '">'
-            : '<p><label>パスワード<input type="password" name="password" required autocomplete="current-password"></label></p>';
-        $newPasswordField = $newPassword
-            ? '<p><label>新しいパスワード<input type="password" name="new_password" required autocomplete="new-password" autofocus></label></p>'
-            : '';
-
-        $body = <<<HTML
-            <h1>Sign in</h1>
-            <p><small>MiniCog · {$e($this->config->userPoolId)} · client {$e((string) $params['client_id'])}</small></p>
-            $errorHtml
-            <form method="post" action="/login">
-                <input type="hidden" name="params" value="{$e(json_encode($params))}">
-                <p><label>ユーザー名<input type="text" name="username" value="{$e($username)}" required autofocus autocomplete="username"></label></p>
-                $passwordField
-                $newPasswordField
-                <p><button type="submit">Sign in</button></p>
-            </form>
-            HTML;
-
-        return new Response($error === null ? 200 : 400, ['Content-Type' => 'text/html; charset=utf-8'], Html::page('Sign in', $body));
+        return $this->view->response('login.html.twig', [
+            'params' => $params,
+            'error' => $error,
+            'username' => $username,
+            'currentPassword' => $currentPassword,
+        ], $error === null ? 200 : 400);
     }
 
     private static function tokenResponse(array $tokens): ResponseInterface
@@ -450,9 +433,9 @@ final class OAuthController
         return $uri . (str_contains($uri, '?') ? '&' : '?') . http_build_query($query);
     }
 
-    private static function errorPage(string $message, int $status): ResponseInterface
+    private function errorPage(string $message, int $status): ResponseInterface
     {
-        return new Response($status, ['Content-Type' => 'text/html; charset=utf-8'], Html::page('Error', '<h1>Error</h1><p>' . htmlspecialchars($message) . '</p>'));
+        return $this->view->response('error.html.twig', ['message' => $message], $status);
     }
 
     private static function json(array $data, int $status = 200): ResponseInterface

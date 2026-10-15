@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% endblock %} - MiniCog</title>
+    <link rel="stylesheet" href="https://unpkg.com/sakura.css/css/sakura.css">
+    <style>
+        .error { color: #c00; }
+        label { display: block; }
+        label input:not([type=checkbox]) { display: block; width: 100%; }
+        table { font-size: .9em; }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+<main>
+    {% block body %}{% endblock %}
+</main>
+</body>
+</html>

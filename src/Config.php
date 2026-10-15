@@ -16,6 +16,7 @@ final class Config
      * @param list<string> $aliasAttributes    email / phone_number / preferred_username でのサインインを許可
      * @param array{MinimumLength?: int, RequireUppercase?: bool, RequireLowercase?: bool, RequireNumbers?: bool, RequireSymbols?: bool} $passwordPolicy
      * @param string|null $fixedCode 確認コードを固定値にする（E2E テスト向け）。null ならランダム 6 桁
+     * @param string|null $templatesDir 同梱テンプレートを上書きする Twig テンプレートのディレクトリ
      */
     public function __construct(
         public readonly string $userPoolId = 'ap-northeast-1_minicog',
@@ -30,6 +31,7 @@ final class Config
         public readonly int $accessTokenTtl = 3600,
         public readonly int $idTokenTtl = 3600,
         public readonly int $refreshTokenTtl = 2592000,
+        public readonly ?string $templatesDir = null,
     ) {
     }
 
@@ -38,6 +40,7 @@ final class Config
         $known = [
             'userPoolId', 'userPoolName', 'baseUrl', 'issuer', 'clients', 'usernameAttributes',
             'aliasAttributes', 'passwordPolicy', 'fixedCode', 'accessTokenTtl', 'idTokenTtl', 'refreshTokenTtl',
+            'templatesDir',
         ];
 
         return new self(...array_intersect_key($config, array_flip($known)));
@@ -64,6 +67,7 @@ final class Config
             'MINICOG_BASE_URL' => 'baseUrl',
             'MINICOG_ISSUER' => 'issuer',
             'MINICOG_FIXED_CODE' => 'fixedCode',
+            'MINICOG_TEMPLATES_DIR' => 'templatesDir',
         ];
         foreach ($env as $name => $key) {
             $value = getenv($name);

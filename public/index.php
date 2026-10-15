@@ -12,6 +12,7 @@
  *   MINICOG_BASE_URL      外部から見たベース URL（既定: http://localhost:9229）
  *   MINICOG_ISSUER        JWT の iss を上書きする
  *   MINICOG_FIXED_CODE    確認コードを固定する（例: 123456）
+ *   MINICOG_TEMPLATES_DIR 同梱の Twig テンプレートを上書きするディレクトリ
  *   MINICOG_DEBUG         1 でデバッグログを出す
  */
 

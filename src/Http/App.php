@@ -2,6 +2,8 @@
 
 namespace MiniCog\Http;
 
+use FastRoute\Dispatcher;
+use FastRoute\RouteCollector;
 use GuzzleHttp\Psr7\Response;
 use GuzzleHttp\Psr7\ServerRequest;
 use MiniCog\Cognito\CognitoException;
@@ -15,6 +17,8 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LoggerInterface;
 
+use function FastRoute\simpleDispatcher;
+
 /**
  * PSR-7 リクエストを受けてレスポンスを返す HTTP アプリケーション。
  * 組み込みサーバー（public/index.php）と AWS SDK の http_handler の両方から使う。
@@ -23,6 +27,7 @@ final class App
 {
     private readonly OAuthController $oauth;
     private readonly AdminController $admin;
+    private readonly Dispatcher $dispatcher;
 
     public function __construct(
         private readonly Config $config,
@@ -31,8 +36,10 @@ final class App
         private readonly TokenService $tokens,
         private readonly LoggerInterface $logger,
     ) {
-        $this->oauth = new OAuthController($config, $users, $tokens);
-        $this->admin = new AdminController($config, $users);
+        $view = new View(['config' => $config], $config->templatesDir);
+        $this->oauth = new OAuthController($config, $users, $tokens, $view);
+        $this->admin = new AdminController($users, $view);
+        $this->dispatcher = simpleDispatcher($this->routes(...));
     }
 
     public function handle(RequestInterface $request): ResponseInterface
@@ -55,31 +62,57 @@ final class App
 
     private function route(ServerRequestInterface $request): ResponseInterface
     {
-        $method = $request->getMethod();
-        $path = $request->getUri()->getPath();
-        $pool = preg_quote($this->config->userPoolId, '#');
-
-        // Cognito API（AWS JSON 1.1）
-        if ($method === 'POST' && $request->hasHeader('X-Amz-Target')) {
+        // Cognito API（AWS JSON 1.1）はパスではなく X-Amz-Target ヘッダーで呼び分ける
+        if ($request->getMethod() === 'POST' && $request->hasHeader('X-Amz-Target')) {
             return $this->cognitoApi($request);
         }
 
-        return match (true) {
-            $method === 'GET' && (bool) preg_match("#^/$pool/\\.well-known/jwks\\.json$#", $path) => self::json($this->tokens->jwks()),
-            $method === 'GET' && (bool) preg_match("#^/$pool/\\.well-known/openid-configuration$#", $path) => $this->oauth->openidConfiguration(),
-            $method === 'GET' && $path === '/oauth2/authorize' => $this->oauth->authorize($request),
-            $method === 'GET' && $path === '/login' => $this->oauth->authorize($request),
-            $method === 'POST' && $path === '/login' => $this->oauth->login($request),
-            $method === 'POST' && $path === '/oauth2/token' => $this->oauth->token($request),
-            in_array($method, ['GET', 'POST'], true) && strcasecmp($path, '/oauth2/userInfo') === 0 => $this->oauth->userInfo($request),
-            $method === 'POST' && $path === '/oauth2/revoke' => $this->oauth->revoke($request),
-            $method === 'GET' && $path === '/logout' => $this->oauth->logout($request),
-            $method === 'GET' && ($path === '/' || $path === '/admin') => $this->admin->index($request),
-            $method === 'POST' && $path === '/admin/users' => $this->admin->create($request),
-            $method === 'POST' && (bool) preg_match('#^/admin/users/([^/]+)/(confirm|delete)$#', $path, $m) => $this->adminAction($m[2], rawurldecode($m[1])),
-            $method === 'GET' && $path === '/health' => self::json(['status' => 'ok']),
+        $route = $this->dispatcher->dispatch($request->getMethod(), $request->getUri()->getPath());
+
+        return match ($route[0]) {
+            Dispatcher::FOUND => $route[1]($request, array_map('rawurldecode', $route[2])),
+            Dispatcher::METHOD_NOT_ALLOWED => self::json(['error' => 'Method Not Allowed'], 405)
+                ->withHeader('Allow', implode(', ', $route[1])),
             default => self::json(['error' => 'Not Found'], 404),
         };
+    }
+
+    /**
+     * ハンドラは (ServerRequestInterface $request, array $vars): ResponseInterface。
+     */
+    private function routes(RouteCollector $r): void
+    {
+        // OIDC
+        $r->get('/{pool}/.well-known/jwks.json', $this->forPool(fn () => self::json($this->tokens->jwks())));
+        $r->get('/{pool}/.well-known/openid-configuration', $this->forPool(fn () => $this->oauth->openidConfiguration()));
+
+        // OAuth 2.0 とマネージドログイン
+        $r->get('/oauth2/authorize', fn ($request) => $this->oauth->authorize($request));
+        $r->get('/login', fn ($request) => $this->oauth->authorize($request));
+        $r->post('/login', fn ($request) => $this->oauth->login($request));
+        $r->post('/oauth2/token', fn ($request) => $this->oauth->token($request));
+        $r->addRoute(['GET', 'POST'], '/oauth2/userInfo', fn ($request) => $this->oauth->userInfo($request));
+        $r->addRoute(['GET', 'POST'], '/oauth2/userinfo', fn ($request) => $this->oauth->userInfo($request));
+        $r->post('/oauth2/revoke', fn ($request) => $this->oauth->revoke($request));
+        $r->get('/logout', fn ($request) => $this->oauth->logout($request));
+
+        // 管理画面
+        $r->get('/', fn ($request) => $this->admin->index($request));
+        $r->get('/admin', fn ($request) => $this->admin->index($request));
+        $r->post('/admin/users', fn ($request) => $this->admin->create($request));
+        $r->post('/admin/users/{username}/{action:confirm|delete}', fn ($request, array $vars) => $this->adminAction($vars['action'], $vars['username']));
+
+        $r->get('/health', fn () => self::json(['status' => 'ok']));
+    }
+
+    /**
+     * {pool} が設定のユーザープール ID と一致するときだけハンドラを呼ぶ。
+     */
+    private function forPool(\Closure $handler): \Closure
+    {
+        return fn (ServerRequestInterface $request, array $vars) => $vars['pool'] === $this->config->userPoolId
+            ? $handler($request, $vars)
+            : self::json(['error' => 'Not Found'], 404);
     }
 
     private function adminAction(string $action, string $username): ResponseInterface

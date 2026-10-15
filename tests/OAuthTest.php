@@ -159,6 +159,30 @@ final class OAuthTest extends TestCase
         ])));
     }
 
+    public function testRouting(): void
+    {
+        $this->assertSame(404, $this->get('/nope')->getStatusCode());
+
+        $notAllowed = $this->minicog->handle(new ServerRequest('DELETE', 'http://localhost:9229/oauth2/token'));
+        $this->assertSame(405, $notAllowed->getStatusCode());
+        $this->assertSame('POST', $notAllowed->getHeaderLine('Allow'));
+
+        // userInfo はパスの大文字小文字どちらでも受け付ける
+        $this->assertSame(401, $this->get('/oauth2/userinfo')->getStatusCode());
+
+        // 管理画面の操作（パスパラメータはデコードされる）
+        $this->minicog->users->create('user name', 'password123', [], 'UNCONFIRMED');
+        $confirm = $this->post('/admin/users/user%20name/confirm', []);
+        $this->assertSame(303, $confirm->getStatusCode());
+        $this->assertSame('CONFIRMED', $this->minicog->users->get('user name')['status']);
+
+        $this->post('/admin/users/user%20name/delete', []);
+        $this->assertNull($this->minicog->users->find('user name'));
+
+        $missing = $this->post('/admin/users/ghost/delete', []);
+        $this->assertStringStartsWith('/admin?error=', $missing->getHeaderLine('Location'));
+    }
+
     public function testCorsPreflight(): void
     {
         $response = $this->minicog->handle(new ServerRequest('OPTIONS', 'http://localhost:9229/', [

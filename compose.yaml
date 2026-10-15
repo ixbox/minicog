@@ -9,12 +9,15 @@ services:
       - minicog-data:/data
       # 設定ファイルを使う場合（minicog.example.json を参照）
       # - ./minicog.json:/config/minicog.json:ro
+      # ログイン画面などを差し替える場合（MINICOG_TEMPLATES_DIR も有効にする）
+      # - ./minicog-templates:/templates:ro
     environment:
       MINICOG_BASE_URL: http://localhost:9229
       # MINICOG_CONFIG: /config/minicog.json
       # MINICOG_USER_POOL_ID: ap-northeast-1_minicog
       # MINICOG_FIXED_CODE: "123456"
       # MINICOG_DEBUG: "1"
+      # MINICOG_TEMPLATES_DIR: /templates
 
 volumes:
   minicog-data:

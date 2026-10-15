@@ -5,7 +5,6 @@ namespace MiniCog\Http;
 use GuzzleHttp\Psr7\Response;
 use MiniCog\Cognito\CognitoException;
 use MiniCog\Cognito\UserPool;
-use MiniCog\Config;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -15,8 +14,8 @@ use Psr\Http\Message\ServerRequestInterface;
 final class AdminController
 {
     public function __construct(
-        private readonly Config $config,
         private readonly UserPool $users,
+        private readonly View $view,
     ) {
     }
 
@@ -29,14 +28,11 @@ final class AdminController
             }
         }
 
-        $body = self::render(__DIR__ . '/../../templates/admin.php', [
-            'config' => $this->config,
+        return $this->view->response('admin.html.twig', [
             'users' => $this->users->all(),
             'groupsByUser' => $groupsByUser,
             'flash' => $request->getQueryParams()['error'] ?? null,
         ]);
-
-        return new Response(200, ['Content-Type' => 'text/html; charset=utf-8'], Html::page('Users', $body));
     }
 
     public function create(ServerRequestInterface $request): ResponseInterface
@@ -87,18 +83,5 @@ final class AdminController
     private static function redirect(string $location): ResponseInterface
     {
         return new Response(303, ['Location' => $location]);
-    }
-
-    private static function render(string $template, array $vars): string
-    {
-        extract($vars);
-        ob_start();
-        try {
-            include $template;
-
-            return ob_get_contents();
-        } finally {
-            ob_end_clean();
-        }
     }
 }
