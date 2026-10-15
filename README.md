@@ -26,15 +26,19 @@ composer serve            # = php -S localhost:9229 public/index.php
 
 phar はリポジトリのチェックアウトも `composer install` も要らない、1 ファイルの実行形式です。
 PHP 8.2 以上（openssl 拡張あり）があれば動きます。
-自分でビルドするほか、GitHub Actions の CI の実行結果から成果物（`minicog.phar`）としてダウンロードできます。
+[GitHub Releases](https://github.com/ixbox/minicog/releases) から最新版をダウンロードできます。
 
 ```sh
-composer build-phar       # build/minicog.phar を作る
+curl -fsSLO https://github.com/ixbox/minicog/releases/latest/download/minicog.phar
+curl -fsSLO https://github.com/ixbox/minicog/releases/latest/download/minicog.phar.sha256
+sha256sum -c minicog.phar.sha256   # macOS は shasum -a 256 -c minicog.phar.sha256
 
-php minicog.phar          # または ./minicog.phar
+php minicog.phar          # または chmod +x して ./minicog.phar
 php minicog.phar --listen 0.0.0.0:9229 --data ./minicog-data.json --config ./minicog.json
 php minicog.phar --help
 ```
+
+自分でビルドする場合は、`composer build-phar` を実行すると `build/minicog.phar` ができます。
 
 | オプション | 既定値 | 説明 |
 |---|---|---|
@@ -384,3 +388,16 @@ GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）では�
 - PHP 8.2 / 8.3 / 8.4 / 8.5 でのテスト
 - PHP 8.2 での phar のビルドと、起動して AWS CLI でサインアップからサインインまで通すスモークテスト（phar は成果物として保存）
 - Docker イメージのビルドと、ヘルスチェック・管理画面・OIDC discovery のスモークテスト
+
+### リリース
+
+`v` で始まるタグを push すると、上の CI がすべて通ったあとに GitHub Releases を作り、`minicog.phar` と `minicog.phar.sha256` を添付します。
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+- phar の `--version` がタグ名と一致しない場合は、リリースせずに失敗します。
+- `v1.0.0-rc.1` のようにハイフンを含むタグは、プレリリースになります。
+- リリースノートは、前のタグからの変更をもとに GitHub が生成します。

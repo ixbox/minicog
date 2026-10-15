@@ -3,6 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
+    # v で始まるタグを push すると、テストとスモークテストのあと GitHub Releases に phar を公開する
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -58,6 +60,12 @@ jobs:
       - name: Build
         run: composer build-phar
 
+      - name: Check version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(php build/minicog.phar --version)
+          test "$version" = "MiniCog $GITHUB_REF_NAME"
+
       - name: Smoke test
         env:
           AWS_ENDPOINT_URL_COGNITO_IDENTITY_PROVIDER: http://127.0.0.1:9229
@@ -112,3 +120,31 @@ jobs:
           curl --silent --show-error --fail --output /dev/null http://localhost:9229/admin/users
           discovery=$(curl --silent --show-error --fail http://localhost:9229/ap-northeast-1_minicog/.well-known/openid-configuration)
           grep -q '"issuer":"http://localhost:9229/ap-northeast-1_minicog"' <<< "$discovery"
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [phar, docker]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: minicog.phar
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          sha256sum minicog.phar > minicog.phar.sha256
+          cat minicog.phar.sha256
+          # v1.0.0-rc.1 のようにハイフンを含むタグはプレリリースにする
+          prerelease=()
+          if [[ "$TAG" == *-* ]]; then
+            prerelease=(--prerelease)
+          fi
+          gh release create "$TAG" minicog.phar minicog.phar.sha256 \
+            --title "$TAG" --generate-notes --verify-tag "${prerelease[@]}"
