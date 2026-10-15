@@ -1,0 +1,20 @@
+{
+  "userPoolId": "ap-northeast-1_minicog",
+  "baseUrl": "http://localhost:9229",
+  "fixedCode": "123456",
+  "usernameAttributes": [],
+  "aliasAttributes": ["email"],
+  "passwordPolicy": { "MinimumLength": 8 },
+  "clients": [
+    {
+      "clientId": "web",
+      "callbackUrls": ["http://localhost:3000/api/auth/callback/cognito"],
+      "logoutUrls": ["http://localhost:3000/"]
+    },
+    {
+      "clientId": "backend",
+      "clientSecret": "backend-secret",
+      "allowedScopes": ["openid", "email", "profile", "aws.cognito.signin.user.admin", "api/read"]
+    }
+  ]
+}

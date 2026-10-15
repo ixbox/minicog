@@ -1,54 +1,41 @@
 <?php
 
+/**
+ * 組み込みサーバー用のフロントコントローラー。
+ *
+ *   php -S localhost:9229 public/index.php
+ *
+ * 環境変数:
+ *   MINICOG_CONFIG        設定 JSON ファイル（minicog.example.json 参照）
+ *   MINICOG_DATA_FILE     状態を保存する JSON ファイル（既定: data/minicog.json）
+ *   MINICOG_USER_POOL_ID  ユーザープール ID（既定: ap-northeast-1_minicog）
+ *   MINICOG_BASE_URL      外部から見たベース URL（既定: http://localhost:9229）
+ *   MINICOG_ISSUER        JWT の iss を上書きする
+ *   MINICOG_FIXED_CODE    確認コードを固定する（例: 123456）
+ *   MINICOG_DEBUG         1 でデバッグログを出す
+ */
+
 require __DIR__ . '/../vendor/autoload.php';
 
-use MiniCog\AdminController;
-use MiniCog\Handler;
+use GuzzleHttp\Psr7\ServerRequest;
+use MiniCog\Config;
+use MiniCog\MiniCog;
 use MiniCog\NanoLogger;
-use MiniCog\UserHandler\FileUserHandler;
+use MiniCog\Store\FileStore;
 
-// 設定
-$debug = (bool) getenv('MINICOG_DEBUG');
-$dataFile = getenv('MINICOG_DATA_FILE') ?: __DIR__ . '/../data/users.json';
+$dataFile = getenv('MINICOG_DATA_FILE') ?: __DIR__ . '/../data/minicog.json';
+$minicog = new MiniCog(
+    Config::fromEnv(),
+    new FileStore($dataFile),
+    new NanoLogger((bool) getenv('MINICOG_DEBUG')),
+);
 
-// 依存性の生成
-$logger = new NanoLogger($debug);
-$userHandler = new FileUserHandler($dataFile);
-$adminController = new AdminController($logger, $userHandler);
+$response = $minicog->handle(ServerRequest::fromGlobals());
 
-// URIからクエリ文字列を除去
-$uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$method = $_SERVER['REQUEST_METHOD'];
-
-// ルーティング
-$routes = [
-    'GET' => [
-        '/admin' => fn() => $adminController->index(),
-        '/admin/users' => fn() => $adminController->list(),
-    ],
-    'POST' => [
-        '/' => fn() => Handler::handleCognitoApi($userHandler),
-        '/admin/users' => fn() => $adminController->create(),
-    ],
-];
-
-// 動的ルート（パラメータあり）
-if ($method === 'POST' && preg_match('#^/admin/users/([^/]+)/delete$#', $uri, $matches)) {
-    $adminController->delete(rawurldecode($matches[1]));
-    exit;
+http_response_code($response->getStatusCode());
+foreach ($response->getHeaders() as $name => $values) {
+    foreach ($values as $value) {
+        header("$name: $value", false);
+    }
 }
-
-if ($method === 'POST' && preg_match('#^/admin/users/([^/]+)/confirm$#', $uri, $matches)) {
-    $adminController->confirm(rawurldecode($matches[1]));
-    exit;
-}
-
-// 静的ルートのマッチング
-if (isset($routes[$method][$uri])) {
-    $routes[$method][$uri]();
-    exit;
-}
-
-// Not Found
-http_response_code(404);
-echo json_encode(['error' => 'Not Found']);
+echo $response->getBody();

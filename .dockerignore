@@ -1,0 +1,11 @@
+.git
+.claude
+vendor
+data
+tests
+phpunit.xml
+.phpunit.result.cache
+*.md
+Dockerfile
+.dockerignore
+compose.yaml

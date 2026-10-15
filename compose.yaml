@@ -1,0 +1,20 @@
+services:
+  minicog:
+    build: .
+    image: minicog:local
+    ports:
+      - "9229:9229"
+    volumes:
+      # ユーザー・署名鍵・セッションを保存する。消すと初期化される
+      - minicog-data:/data
+      # 設定ファイルを使う場合（minicog.example.json を参照）
+      # - ./minicog.json:/config/minicog.json:ro
+    environment:
+      MINICOG_BASE_URL: http://localhost:9229
+      # MINICOG_CONFIG: /config/minicog.json
+      # MINICOG_USER_POOL_ID: ap-northeast-1_minicog
+      # MINICOG_FIXED_CODE: "123456"
+      # MINICOG_DEBUG: "1"
+
+volumes:
+  minicog-data:
