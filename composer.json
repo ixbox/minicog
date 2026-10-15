@@ -18,8 +18,8 @@
     "psr/http-server-middleware": "^1.0"
   },
   "require-dev": {
-    "aws/aws-sdk-php": "^3.369",
-    "pestphp/pest": "^4.2"
+    "aws/aws-sdk-php": "^3.401",
+    "pestphp/pest": "^3.8"
   },
   "suggest": {
     "aws/aws-sdk-php": "To use MiniCog in-process as the http_handler of CognitoIdentityProviderClient"
