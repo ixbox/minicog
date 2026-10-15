@@ -1,5 +1,7 @@
 # MiniCog
 
+[![CI](https://github.com/ixbox/minicog/actions/workflows/ci.yml/badge.svg)](https://github.com/ixbox/minicog/actions/workflows/ci.yml)
+
 ローカル開発用の Amazon Cognito（User Pools）互換 IdP です。
 同じコードを 2 通りの形で使えます。
 
@@ -24,6 +26,7 @@ composer serve            # = php -S localhost:9229 public/index.php
 
 phar はリポジトリのチェックアウトも `composer install` も要らない、1 ファイルの実行形式です。
 PHP 8.2 以上（openssl 拡張あり）があれば動きます。
+自分でビルドするほか、GitHub Actions の CI の実行結果から成果物（`minicog.phar`）としてダウンロードできます。
 
 ```sh
 composer build-phar       # build/minicog.phar を作る
@@ -375,3 +378,9 @@ $response = $minicog->handle($serverRequest);   // ResponseInterface
 ```sh
 composer test
 ```
+
+GitHub Actions（[.github/workflows/ci.yml](.github/workflows/ci.yml)）では、main への push と pull request のたびに次を実行します。
+
+- PHP 8.2 / 8.3 / 8.4 / 8.5 でのテスト
+- PHP 8.2 での phar のビルドと、起動して AWS CLI でサインアップからサインインまで通すスモークテスト（phar は成果物として保存）
+- Docker イメージのビルドと、ヘルスチェック・管理画面・OIDC discovery のスモークテスト
